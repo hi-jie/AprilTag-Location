@@ -1,0 +1,609 @@
+package com.example.apriltaglocation;
+
+import android.util.Log;
+import android.graphics.ImageFormat;
+import android.media.Image;
+
+import androidx.camera.core.ImageProxy;
+import androidx.camera.core.ExperimentalGetImage;
+
+import java.nio.ByteBuffer;
+import java.util.List;
+import java.util.ArrayList;
+
+import edu.umich.eecs.april.apriltag.ApriltagDetection;
+import edu.umich.eecs.april.apriltag.ApriltagNative;
+
+/**
+ * AprilTag检测器（使用AprilTag官方库）
+ */
+public class AprilTagDetector {
+    private static final String TAG = "AprilTagDetector";
+    
+    private int[] baseTagIds;
+    private int frontTagId;
+    private int rearTagId;
+    private String tagFamily;
+    
+    // 根据tag族类型设置不同的Hamming距离阈值
+    private int maxHammingDistance;
+    private double minDecisionMargin;
+    
+    // 用于计算位置的四个角点
+    private double[][] cornerPositions = new double[4][2];
+    private boolean[] cornerDetected = new boolean[4];
+    
+    // 添加锁对象，用于同步访问
+    private final Object detectorLock = new Object();
+
+    public AprilTagDetector(int[] baseTagIds, int frontTagId, int rearTagId) {
+        this.baseTagIds = baseTagIds;
+        this.frontTagId = frontTagId;
+        this.rearTagId = rearTagId;
+        this.tagFamily = "tag16h5"; // 默认使用tag16h5
+        
+        updateThresholdsByTagFamily(); // 根据tag族更新阈值
+        initializeDetector();
+    }
+
+    public AprilTagDetector(int[] baseTagIds, int frontTagId, int rearTagId, String tagFamily) {
+        this.baseTagIds = baseTagIds;
+        this.frontTagId = frontTagId;
+        this.rearTagId = rearTagId;
+        this.tagFamily = tagFamily != null ? tagFamily : "tag16h5";
+        
+        updateThresholdsByTagFamily(); // 根据tag族更新阈值
+        initializeDetector();
+    }
+
+    // 根据tag族类型设置不同的检测阈值
+    private void updateThresholdsByTagFamily() {
+        if ("tag16h5".equals(tagFamily)) {
+            // 对于tag16h5，降低Hamming距离阈值，减少误识别
+            maxHammingDistance = 0; // 严格匹配，不允许错误校正
+            minDecisionMargin = 25.0; // 更高的决策边距阈值
+        } else {
+            // 对于其他tag族，使用较宽松的阈值
+            maxHammingDistance = 2; // 允许一定错误校正
+            minDecisionMargin = 15.0; // 较低的决策边距阈值
+        }
+    }
+
+    private void initializeDetector() {
+        try {
+            // 初始化原生库
+            ApriltagNative.native_init();
+            
+            // 根据tag族类型设置不同的检测参数
+            if ("tag16h5".equals(tagFamily)) {
+                // 对于tag16h5，使用更严格的参数以减少误识别
+                // 参数: tagFamily, errorBits(纠错位数), decimateFactor(降低采样因子), blurSigma(模糊sigma值), nthreads(线程数)
+                ApriltagNative.apriltag_init(tagFamily, 0, 1.0, 0.0, 1);
+            } else {
+                // 对于其他tag族，使用相对宽松的参数
+                ApriltagNative.apriltag_init(tagFamily, 2, 1.0, 0.0, 1);
+            }
+        } catch (UnsatisfiedLinkError e) {
+            Log.e(TAG, "Failed to initialize AprilTag native library: " + e.getMessage());
+            // 显示错误信息给用户
+            Log.e(TAG, "Native library not loaded. Check if the native library exists and is compatible with device architecture.");
+        } catch (Exception e) {
+            Log.e(TAG, "Unexpected error during AprilTag initialization: " + e.getMessage(), e);
+        }
+    }
+    
+    public String getTagFamily() {
+        return tagFamily;
+    }
+
+    public void updateTagFamily(String newTagFamily) {
+        synchronized(detectorLock) {
+            if (!tagFamily.equals(newTagFamily)) {
+                this.tagFamily = newTagFamily;
+                updateThresholdsByTagFamily(); // 更新阈值
+                // 重新初始化检测器
+                try {
+                    if ("tag16h5".equals(tagFamily)) {
+                        ApriltagNative.apriltag_init(tagFamily, 0, 1.0, 0.0, 1);
+                    } else {
+                        ApriltagNative.apriltag_init(tagFamily, 2, 1.0, 0.0, 1);
+                    }
+                } catch (UnsatisfiedLinkError e) {
+                    Log.e(TAG, "Failed to reinitialize AprilTag native library: " + e.getMessage());
+                } catch (Exception e) {
+                    Log.e(TAG, "Unexpected error during AprilTag reinitialization: " + e.getMessage(), e);
+                }
+            }
+        }
+    }
+
+    /**
+     * 处理图像并检测标签
+     */
+    @ExperimentalGetImage
+    public DetectionResult processImage(ImageProxy image) {
+        synchronized(detectorLock) {
+            // 获取图像字节数组
+            byte[] nv21Bytes = getYUVByteArray(image);
+            if (nv21Bytes == null) {
+                Log.e(TAG, "Failed to get YUV bytes from image");
+                return null;
+            }
+
+            int width = image.getWidth();
+            int height = image.getHeight();
+
+            // 使用AprilTag原生库检测标签 - 添加异常处理
+            List<ApriltagDetection> detections;
+            try {
+                detections = ApriltagNative.apriltag_detect_yuv(nv21Bytes, width, height);
+            } catch (UnsatisfiedLinkError e) {
+                Log.e(TAG, "AprilTag native detection failed: " + e.getMessage());
+                return null;
+            } catch (Exception e) {
+                Log.e(TAG, "Unexpected error during AprilTag detection: " + e.getMessage(), e);
+                return null;
+            }
+
+            // 处理检测结果
+            if (detections == null || detections.isEmpty()) {
+                Log.d(TAG, "No detections found in image");
+                return null;
+            }
+
+            Log.d(TAG, "Found " + detections.size() + " detections in image");
+
+            // 查找目标标签和基准标签
+            ApriltagDetection frontDetection = null;
+            ApriltagDetection rearDetection = null;
+            List<ApriltagDetection> baseDetections = new ArrayList<>();
+
+            for (ApriltagDetection detection : detections) {
+                Log.d(TAG, "Processing detection: id=" + detection.id + ", hamming=" + detection.hamming);
+                
+                // 验证检测质量：检查hamming距离
+                if (detection.hamming > maxHammingDistance) {
+                    // Hamming距离过大，跳过这个检测结果
+                    Log.d(TAG, "Skipping detection due to high hamming distance: " + detection.hamming);
+                    continue;
+                }
+                
+                boolean isBaseTag = false;
+                for (int baseTagId : baseTagIds) {
+                    if (detection.id == baseTagId) {
+                        baseDetections.add(detection);
+                        isBaseTag = true;
+                        break;
+                    }
+                }
+                
+                if (!isBaseTag) {
+                    if (detection.id == frontTagId) {
+                        frontDetection = detection;
+                    } else if (detection.id == rearTagId) {
+                        rearDetection = detection;
+                    }
+                }
+            }
+
+            // 确保找到了所有必需的标签
+            if (baseDetections.size() >= 4 && frontDetection != null && rearDetection != null) {
+                Log.d(TAG, "Found " + baseDetections.size() + " base tags, 1 front tag and 1 rear tag, proceeding with calculation");
+                
+                // 计算四个基准标签的位置（左下、右下、左上、右上）
+                for (ApriltagDetection baseDetection : baseDetections) {
+                    // 根据检测到的标签ID确定位置
+                    for (int i = 0; i < baseTagIds.length; i++) {
+                        if (baseDetection.id == baseTagIds[i]) {
+                            cornerPositions[i][0] = baseDetection.c[0];
+                            cornerPositions[i][1] = baseDetection.c[1];
+                            Log.d(TAG, "Setting corner " + i + " (ID:" + baseTagIds[i] + ") to position (" + 
+                                  cornerPositions[i][0] + ", " + cornerPositions[i][1] + ")");
+                            break;
+                        }
+                    }
+                }
+
+                // 计算车头车尾连线的中心点作为小车位置
+                double centerX = (frontDetection.c[0] + rearDetection.c[0]) / 2.0;
+                double centerY = (frontDetection.c[1] + rearDetection.c[1]) / 2.0;
+
+                // 使用透视变换计算归一化坐标
+                double[] normalizedCenterCoords = calculateNormalizedCoordinates(centerX, centerY);
+                double[] normalizedFrontCoords = calculateNormalizedCoordinates(frontDetection.c[0], frontDetection.c[1]);
+                double[] normalizedRearCoords = calculateNormalizedCoordinates(rearDetection.c[0], rearDetection.c[1]);
+                
+                double normalizedX = normalizedCenterCoords[0];
+                double normalizedY = normalizedCenterCoords[1];
+                
+                Log.d(TAG, "Calculated normalized coordinates: (" + normalizedX + ", " + normalizedY + ")");
+
+                // 计算方向角度（从车尾到车头的方向与透视变换后的x坐标所形成的角）
+                double angle = calculateAngleFromRearToFront(normalizedRearCoords, normalizedFrontCoords);
+                Log.d(TAG, "Calculated angle: " + angle);
+
+                // 确保坐标在0-1范围内
+                if (normalizedX >= 0 && normalizedX <= 1 && normalizedY >= 0 && normalizedY <= 1) {
+                    Log.d(TAG, "Returning detection result: x=" + normalizedX + ", y=" + normalizedY + ", angle=" + angle);
+                    return new DetectionResult(normalizedX, normalizedY, angle, frontDetection.id);
+                } else {
+                    Log.d(TAG, "Coordinates out of range: x=" + normalizedX + ", y=" + normalizedY + 
+                          ", skipping result");
+                }
+            } else {
+                Log.d(TAG, "Insufficient tags detected. Base tags: " + baseDetections.size() + 
+                      ", Front tag: " + (frontDetection != null ? "YES" : "NO") +
+                      ", Rear tag: " + (rearDetection != null ? "YES" : "NO"));
+            }
+
+            return null;
+        }
+    }
+
+    /**
+     * 使用透视变换计算归一化坐标
+     * 将任意四边形场地变换为标准矩形坐标系
+     * 将图像上的任意四边形变换为单位正方形 [0,1]x[0,1]
+     */
+    private double[] calculateNormalizedCoordinates(double targetX, double targetY) {
+        // 获取四个基准标签的坐标，对应单位正方形的四个角点
+        // 按照约定顺序：左下、右下、左上、右上 (0, 1, 2, 3)
+        double[] srcX = {cornerPositions[0][0], cornerPositions[1][0], cornerPositions[2][0], cornerPositions[3][0]};
+        double[] srcY = {cornerPositions[0][1], cornerPositions[1][1], cornerPositions[2][1], cornerPositions[3][1]};
+        
+        // 目标单位正方形的四个角点：左下(0,1), 右下(1,1), 左上(0,0), 右上(1,0)
+        double[] dstX = {0.0, 1.0, 0.0, 1.0};
+        double[] dstY = {1.0, 1.0, 0.0, 0.0};
+        
+        // 构建透视变换矩阵系数的线性方程组
+        // 透视变换公式:
+        // x' = (a*x + b*y + c) / (g*x + h*y + 1)
+        // y' = (d*x + e*y + f) / (g*x + h*y + 1)
+        //
+        // 变换为线性形式:
+        // x'*(g*x + h*y + 1) = a*x + b*y + c
+        // y'*(g*x + h*y + 1) = d*x + e*y + f
+        //
+        // 整理得:
+        // a*x + b*y + c - x'*x*g - x'*y*h = x'
+        // d*x + e*y + f - y'*x*g - y'*y*h = y'
+        
+        double[][] A = new double[8][8];
+        double[] B = new double[8];
+        
+        // 对四个角点建立方程
+        for (int i = 0; i < 4; i++) {
+            // x'方程
+            A[i*2][0] = srcX[i];       // a系数
+            A[i*2][1] = srcY[i];       // b系数
+            A[i*2][2] = 1.0;           // c系数
+            A[i*2][3] = 0.0;           // d系数
+            A[i*2][4] = 0.0;           // e系数
+            A[i*2][5] = 0.0;           // f系数
+            A[i*2][6] = -dstX[i] * srcX[i]; // g系数
+            A[i*2][7] = -dstX[i] * srcY[i]; // h系数
+            B[i*2] = dstX[i];          // 目标值
+            
+            // y'方程
+            A[i*2+1][0] = 0.0;         // a系数
+            A[i*2+1][1] = 0.0;         // b系数
+            A[i*2+1][2] = 0.0;         // c系数
+            A[i*2+1][3] = srcX[i];     // d系数
+            A[i*2+1][4] = srcY[i];     // e系数
+            A[i*2+1][5] = 1.0;         // f系数
+            A[i*2+1][6] = -dstY[i] * srcX[i]; // g系数
+            A[i*2+1][7] = -dstY[i] * srcY[i]; // h系数
+            B[i*2+1] = dstY[i];        // 目标值
+        }
+        
+        // 求解线性方程组得到变换矩阵系数
+        double[] coeffs = solveLinearSystem(A, B);
+        
+        // 使用求得的系数计算目标点的变换后坐标
+        double a = coeffs[0];
+        double b = coeffs[1];
+        double c = coeffs[2];
+        double d = coeffs[3];
+        double e = coeffs[4];
+        double f = coeffs[5];
+        double g = coeffs[6];
+        double h = coeffs[7];
+        
+        // 应用透视变换
+        double denominator = g * targetX + h * targetY + 1.0;
+        
+        // 添加安全性检查，防止分母接近0
+        if (Math.abs(denominator) < 1e-6) {
+            Log.e(TAG, "Perspective transformation denominator too close to zero: " + denominator);
+            // 返回无效坐标
+            return new double[]{0.5, 0.5}; // 返回中心点作为默认值
+        }
+        
+        double resultX = (a * targetX + b * targetY + c) / denominator;
+        double resultY = (d * targetX + e * targetY + f) / denominator;
+        
+        // 确保结果在合理范围内
+        resultX = Math.max(0.0, Math.min(1.0, resultX));
+        resultY = Math.max(0.0, Math.min(1.0, resultY));
+        
+        return new double[]{resultX, resultY};
+    }
+
+    /**
+     * 解线性方程组 AX = B
+     * 使用高斯消元法
+     */
+    private double[] solveLinearSystem(double[][] A, double[] B) {
+        int n = B.length;
+        double[][] augmented = new double[n][n + 1];
+
+        // 构造增广矩阵
+        for (int i = 0; i < n; i++) {
+            for (int j = 0; j < n; j++) {
+                augmented[i][j] = A[i][j];
+            }
+            augmented[i][n] = B[i];
+        }
+
+        // 高斯消元
+        for (int i = 0; i < n; i++) {
+            // 寻找主元
+            int maxRow = i;
+            for (int k = i + 1; k < n; k++) {
+                if (Math.abs(augmented[k][i]) > Math.abs(augmented[maxRow][i])) {
+                    maxRow = k;
+                }
+            }
+
+            // 交换行
+            double[] temp = augmented[maxRow];
+            augmented[maxRow] = augmented[i];
+            augmented[i] = temp;
+
+            // 消元
+            for (int k = i + 1; k < n; k++) {
+                double factor = augmented[k][i] / augmented[i][i];
+                for (int j = i; j < n + 1; j++) {
+                    augmented[k][j] -= factor * augmented[i][j];
+                }
+            }
+        }
+
+        // 回代求解
+        double[] solution = new double[n];
+        for (int i = n - 1; i >= 0; i--) {
+            solution[i] = augmented[i][n];
+            for (int j = i + 1; j < n; j++) {
+                solution[i] -= augmented[i][j] * solution[j];
+            }
+            solution[i] /= augmented[i][i];
+        }
+
+        return solution;
+    }
+
+    private boolean allCornersDetected() {
+        for (int i = 0; i < 4; i++) {
+            if (!cornerDetected[i]) {
+                Log.d(TAG, "Corner " + i + " (tag ID " + baseTagIds[i] + ") not detected");
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private double[] calculateRelativePosition(double targetX, double targetY) {
+        // 获取四个基准标签的坐标
+        double x1 = cornerPositions[0][0]; // 左上角
+        double y1 = cornerPositions[0][1];
+        double x2 = cornerPositions[1][0]; // 右上角
+        double y2 = cornerPositions[1][1];
+        double x3 = cornerPositions[2][0]; // 右下角
+        double y3 = cornerPositions[2][1];
+        double x4 = cornerPositions[3][0]; // 左下角
+        double y4 = cornerPositions[3][1];
+        
+        // 计算场地坐标系的边界
+        double minX = Math.min(Math.min(x1, x2), Math.min(x3, x4));
+        double maxX = Math.max(Math.max(x1, x2), Math.max(x3, x4));
+        double minY = Math.min(Math.min(y1, y2), Math.min(y3, y4));
+        double maxY = Math.max(Math.max(y1, y2), Math.max(y3, y4));
+        
+        // 将目标坐标归一化到[0, 1]区间
+        double normX = (targetX - minX) / (maxX - minX);
+        double normY = (targetY - minY) / (maxY - minY);
+        
+        // 确保归一化坐标在[0, 1]范围内
+        normX = Math.max(0, Math.min(1, normX));
+        normY = Math.max(0, Math.min(1, normY));
+        
+        return new double[]{normX, normY};
+    }
+
+    private double calculateAngleFromCorners(ApriltagDetection detection) {
+        // 计算AprilTag的方向角
+        // 使用第一个和第二个角点来确定方向
+        double x0 = detection.p[0]; // 第一个角点x坐标
+        double y0 = detection.p[1]; // 第一个角点y坐标
+        double x1 = detection.p[2]; // 第二个角点x坐标
+        double y1 = detection.p[3]; // 第二个角点y坐标
+        
+        // 计算从第一个角点到第二个角点的角度
+        double angleRad = Math.atan2(y1 - y0, x0 - x1);
+        double angleDeg = Math.toDegrees(angleRad);
+        
+        // 确保角度在0-360度范围内
+        if (angleDeg < 0) {
+            angleDeg += 360;
+        }
+        
+        return angleDeg;
+    }
+
+    private byte[] getYUVByteArray(ImageProxy image) {
+        Image mediaImage = image.getImage();
+        if (mediaImage == null) {
+            Log.e(TAG, "MediaImage is null");
+            return null;
+        }
+
+        // 检查格式
+        int format = mediaImage.getFormat();
+        if (format != ImageFormat.YUV_420_888 && format != ImageFormat.NV21) {
+            Log.e(TAG, "Unsupported image format: " + format);
+            mediaImage.close();
+            return null;
+        }
+
+        // 处理YUV_420_888格式
+        if (format == ImageFormat.YUV_420_888) {
+            return convertYuv420ToNv21(mediaImage);
+        } else {
+            // 处理NV21格式
+            return convertNv21Image(mediaImage);
+        }
+    }
+    
+    private byte[] convertYuv420ToNv21(Image mediaImage) {
+        Image.Plane[] planes = mediaImage.getPlanes();
+        int width = mediaImage.getWidth();
+        int height = mediaImage.getHeight();
+        
+        // 确保有足够的平面
+        if (planes.length < 3) {
+            Log.e(TAG, "Insufficient planes in YUV_420_888 image: " + planes.length);
+            mediaImage.close();
+            return null;
+        }
+
+        ByteBuffer yBuffer = planes[0].getBuffer();
+        ByteBuffer uBuffer = planes[1].getBuffer();
+        ByteBuffer vBuffer = planes[2].getBuffer();
+
+        if (yBuffer == null || uBuffer == null || vBuffer == null) {
+            Log.e(TAG, "One of the plane buffers is null");
+            mediaImage.close();
+            return null;
+        }
+
+        // 获取每个平面的像素间距和偏移
+        int ySize = yBuffer.remaining();
+        int uSize = uBuffer.remaining();
+        int vSize = vBuffer.remaining();
+
+        int uvPixelStride = planes[1].getPixelStride();
+        int vPixelStride = planes[2].getPixelStride();
+        int uPixelOffset = planes[1].getRowStride() - uSize / height;
+        int vPixelOffset = planes[2].getRowStride() - vSize / height;
+
+        // NV21格式是YYYYYYYYVUUVUU这样的排列，V和U交替存储
+        int size = ySize + (int)(ySize * 0.5); // UV部分是Y部分的一半大小
+        byte[] nv21 = new byte[size];
+
+        // 读取Y通道
+        yBuffer.get(nv21, 0, ySize);
+
+        // 读取UV通道
+        int halfHeight = height / 2;
+        int halfWidth = width / 2;
+        int index = ySize;
+        
+        // 交错读取V和U值
+        for (int row = 0; row < halfHeight; row++) {
+            int vuRowStart = row * planes[2].getRowStride() + vPixelOffset;
+            int uvRowStart = row * planes[1].getRowStride() + uPixelOffset;
+
+            for (int col = 0; col < halfWidth; col++) {
+                // 读取V值
+                if (vuRowStart + col * vPixelStride < vBuffer.capacity()) {
+                    vBuffer.position(vuRowStart + col * vPixelStride);
+                    nv21[index++] = vBuffer.get();
+                } else {
+                    nv21[index++] = 0; // 填充0作为默认值
+                }
+
+                // 读取U值
+                if (uvRowStart + col * uvPixelStride < uBuffer.capacity()) {
+                    uBuffer.position(uvRowStart + col * uvPixelStride);
+                    nv21[index++] = uBuffer.get();
+                } else {
+                    nv21[index++] = 0; // 填充0作为默认值
+                }
+            }
+        }
+
+        mediaImage.close();
+        return nv21;
+    }
+
+    private byte[] convertNv21Image(Image mediaImage) {
+        Image.Plane[] planes = mediaImage.getPlanes();
+        if (planes.length < 1) {
+            Log.e(TAG, "Insufficient planes in NV21 image: " + planes.length);
+            mediaImage.close();
+            return null;
+        }
+
+        ByteBuffer buffer = planes[0].getBuffer();
+        int pixelCount = buffer.remaining();
+        byte[] data = new byte[pixelCount];
+        buffer.get(data);
+
+        mediaImage.close();
+        return data;
+    }
+    
+    public void updateSettings(int[] baseTagIds, int frontTagId, int rearTagId, String tagFamily) {
+        this.baseTagIds = baseTagIds;
+        this.frontTagId = frontTagId;
+        this.rearTagId = rearTagId;
+        
+        // 如果tag族发生变化，则重新初始化检测器
+        if (!this.tagFamily.equals(tagFamily)) {
+            this.tagFamily = tagFamily;
+            updateThresholdsByTagFamily(); // 更新阈值
+            initializeDetector();
+        } else {
+            this.tagFamily = tagFamily;
+        }
+    }
+
+    // 计算从车尾到车头的方向角度（基于透视变换后的坐标）
+    private double calculateAngleFromRearToFront(double[] rearCoords, double[] frontCoords) {
+        // 计算从车尾到车头的向量
+        double dx = frontCoords[0] - rearCoords[0];
+        double dy = frontCoords[1] - rearCoords[1];
+        
+        // 计算角度（弧度转换为度）
+        double angleRad = Math.atan2(dy, dx);
+        double angleDeg = Math.toDegrees(angleRad);
+        
+        // 确保角度在0-360度范围内
+        if (angleDeg < 0) {
+            angleDeg += 360;
+        }
+        
+        return angleDeg;
+    }
+
+    // 检测结果内部类
+    public static class DetectionResult {
+        public double x;      // 归一化x坐标 (0-1)
+        public double y;      // 归一化y坐标 (0-1)
+        public double angle;  // 方向角度 (0-360度)
+        public int tagId;     // 标签ID
+
+        public DetectionResult(double x, double y, double angle, int tagId) {
+            this.x = x;
+            this.y = y;
+            this.angle = angle;
+            this.tagId = tagId;
+        }
+
+        @Override
+        public String toString() {
+            return String.format("DetectionResult{x=%.3f, y=%.3f, angle=%.3f, tagId=%d}", 
+                                x, y, angle, tagId);
+        }
+    }
+}
