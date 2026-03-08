@@ -543,7 +543,7 @@ public class AprilTagDetector {
 
         @Override
         public String toString() {
-            return String.format("DetectionResult{x=%.3f, y=%.3f, angle=%.3f, tagId=%d}", 
+            return String.format("DetectionResult{x=%.5f, y=%.5f, angle=%.5f, tagId=%d}", 
                                 x, y, angle, tagId);
         }
     }

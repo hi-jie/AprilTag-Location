@@ -99,7 +99,7 @@ public class AprilTagAnalyzer implements ImageAnalysis.Analyzer {
             
             if (result != null) {
                 // 仅输出最终检测结果
-                Log.d(TAG, String.format("检测到标签 - X: %.3f, Y: %.3f, Angle: %.3f°", result.x, result.y, result.angle));
+                Log.d(TAG, String.format("检测到标签 - X: %.5f, Y: %.5f, Angle: %.5f°", result.x, result.y, result.angle));
                 
                 // 在后台线程发送位置数据，避免阻塞图像分析
                 networkExecutor.execute(() -> {

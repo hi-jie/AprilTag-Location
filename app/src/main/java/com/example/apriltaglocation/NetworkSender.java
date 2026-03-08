@@ -27,7 +27,7 @@ public class NetworkSender {
     
     // 添加发送频率控制
     private long lastSendTime = 0;
-    private static final long MIN_SEND_INTERVAL = 50; // 最小发送间隔50ms (约20Hz)
+    private static final long MIN_SEND_INTERVAL = 10; // 最小发送间隔10ms (约100Hz)
     
     // UDP socket相关
     private DatagramSocket udpSocket = null;
@@ -101,7 +101,7 @@ public class NetworkSender {
         final String finalServerAddress = tempServerAddress;
 
         // 创建纯文本数据格式：x,y,angle
-        String payload = String.format("%.3f,%.3f,%.3f", x, y, angle);
+        String payload = String.format("%.5f,%.5f,%.5f", x, y, angle);
         
         // 在单独的线程中发送UDP数据
         udpExecutor.execute(() -> {

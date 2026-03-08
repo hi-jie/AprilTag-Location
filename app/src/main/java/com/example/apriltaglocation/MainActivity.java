@@ -129,7 +129,7 @@ public class MainActivity extends AppCompatActivity {
                     if (result != null) {
                         // 获取当前帧率并显示
                         double fps = aprilTagAnalyzer.getCurrentFps();
-                        String coordsText = String.format("X: %.3f, Y: %.3f, Angle: %.1f°\nFPS: %.1f", 
+                        String coordsText = String.format("X: %.5f, Y: %.5f, Angle: %.5f°\nFPS: %.1f", 
                             result.x, result.y, result.angle, fps);
                         coordinatesTextView.setText(coordsText);
                     } else {
