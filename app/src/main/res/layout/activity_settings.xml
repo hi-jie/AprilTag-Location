@@ -123,55 +123,6 @@
 
         </LinearLayout>
 
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Network Settings:"
-            android:textSize="18sp"
-            android:textStyle="bold"
-            android:layout_marginBottom="16dp"/>
-
-        <!-- 添加显示当前连接信息的文本视图 -->
-        <TextView
-            android:id="@+id/connection_info_textview"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="当前连接信息: 等待加载..."
-            android:textSize="16sp"
-            android:background="#E0E0E0"
-            android:padding="12dp"
-            android:layout_marginBottom="16dp"/>
-
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Server Address:"
-            android:textSize="16sp"
-            android:layout_marginBottom="8dp"/>
-
-        <EditText
-            android:id="@+id/serverAddress"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:hint="Server IP Address (e.g., 192.168.1.100)"
-            android:inputType="text"
-            android:layout_marginBottom="16dp"/>
-
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Server Port:"
-            android:textSize="16sp"
-            android:layout_marginBottom="8dp"/>
-
-        <EditText
-            android:id="@+id/portNumber"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:hint="Port Number"
-            android:inputType="number"
-            android:layout_marginBottom="16dp"/>
-
         <Button
             android:id="@+id/saveSettingsButton"
             android:layout_width="match_parent"

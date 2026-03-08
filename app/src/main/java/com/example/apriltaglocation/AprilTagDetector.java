@@ -59,9 +59,9 @@ public class AprilTagDetector {
     // 根据tag族类型设置不同的检测阈值
     private void updateThresholdsByTagFamily() {
         if ("tag16h5".equals(tagFamily)) {
-            // 对于tag16h5，降低Hamming距离阈值，减少误识别
-            maxHammingDistance = 0; // 严格匹配，不允许错误校正
-            minDecisionMargin = 25.0; // 更高的决策边距阈值
+            // 对于tag16h5，平衡性能和准确性
+            maxHammingDistance = 0; // 仍然保持严格匹配，不允许错误校正
+            minDecisionMargin = 20.0; // 适度降低决策边距阈值以提高性能
         } else {
             // 对于其他tag族，使用较宽松的阈值
             maxHammingDistance = 2; // 允许一定错误校正
@@ -76,12 +76,12 @@ public class AprilTagDetector {
             
             // 根据tag族类型设置不同的检测参数
             if ("tag16h5".equals(tagFamily)) {
-                // 对于tag16h5，使用更严格的参数以减少误识别
+                // 对于tag16h5，平衡性能和准确性
                 // 参数: tagFamily, errorBits(纠错位数), decimateFactor(降低采样因子), blurSigma(模糊sigma值), nthreads(线程数)
-                ApriltagNative.apriltag_init(tagFamily, 0, 1.0, 0.0, 1);
+                ApriltagNative.apriltag_init(tagFamily, 0, 1.5, 0.0, 4); // 增加降采样因子和线程数
             } else {
                 // 对于其他tag族，使用相对宽松的参数
-                ApriltagNative.apriltag_init(tagFamily, 2, 1.0, 0.0, 1);
+                ApriltagNative.apriltag_init(tagFamily, 2, 2, 0.0, 4); // 增加降采样因子和线程数
             }
         } catch (UnsatisfiedLinkError e) {
             Log.e(TAG, "Failed to initialize AprilTag native library: " + e.getMessage());
@@ -104,9 +104,11 @@ public class AprilTagDetector {
                 // 重新初始化检测器
                 try {
                     if ("tag16h5".equals(tagFamily)) {
-                        ApriltagNative.apriltag_init(tagFamily, 0, 1.0, 0.0, 1);
+                        // 对tag16h5使用优化的参数
+                        ApriltagNative.apriltag_init(tagFamily, 0, 1.5, 0.0, 4); // 增加降采样和线程数
                     } else {
-                        ApriltagNative.apriltag_init(tagFamily, 2, 1.0, 0.0, 1);
+                        // 对其他族使用优化的参数
+                        ApriltagNative.apriltag_init(tagFamily, 2, 1.5, 0.0, 4); // 增加降采样和线程数
                     }
                 } catch (UnsatisfiedLinkError e) {
                     Log.e(TAG, "Failed to reinitialize AprilTag native library: " + e.getMessage());
@@ -126,7 +128,6 @@ public class AprilTagDetector {
             // 获取图像字节数组
             byte[] nv21Bytes = getYUVByteArray(image);
             if (nv21Bytes == null) {
-                Log.e(TAG, "Failed to get YUV bytes from image");
                 return null;
             }
 
@@ -147,11 +148,8 @@ public class AprilTagDetector {
 
             // 处理检测结果
             if (detections == null || detections.isEmpty()) {
-                Log.d(TAG, "No detections found in image");
                 return null;
             }
-
-            Log.d(TAG, "Found " + detections.size() + " detections in image");
 
             // 查找目标标签和基准标签
             ApriltagDetection frontDetection = null;
@@ -159,12 +157,9 @@ public class AprilTagDetector {
             List<ApriltagDetection> baseDetections = new ArrayList<>();
 
             for (ApriltagDetection detection : detections) {
-                Log.d(TAG, "Processing detection: id=" + detection.id + ", hamming=" + detection.hamming);
-                
                 // 验证检测质量：检查hamming距离
                 if (detection.hamming > maxHammingDistance) {
                     // Hamming距离过大，跳过这个检测结果
-                    Log.d(TAG, "Skipping detection due to high hamming distance: " + detection.hamming);
                     continue;
                 }
                 
@@ -188,8 +183,6 @@ public class AprilTagDetector {
 
             // 确保找到了所有必需的标签
             if (baseDetections.size() >= 4 && frontDetection != null && rearDetection != null) {
-                Log.d(TAG, "Found " + baseDetections.size() + " base tags, 1 front tag and 1 rear tag, proceeding with calculation");
-                
                 // 计算四个基准标签的位置（左下、右下、左上、右上）
                 for (ApriltagDetection baseDetection : baseDetections) {
                     // 根据检测到的标签ID确定位置
@@ -197,8 +190,6 @@ public class AprilTagDetector {
                         if (baseDetection.id == baseTagIds[i]) {
                             cornerPositions[i][0] = baseDetection.c[0];
                             cornerPositions[i][1] = baseDetection.c[1];
-                            Log.d(TAG, "Setting corner " + i + " (ID:" + baseTagIds[i] + ") to position (" + 
-                                  cornerPositions[i][0] + ", " + cornerPositions[i][1] + ")");
                             break;
                         }
                     }
@@ -215,25 +206,16 @@ public class AprilTagDetector {
                 
                 double normalizedX = normalizedCenterCoords[0];
                 double normalizedY = normalizedCenterCoords[1];
-                
-                Log.d(TAG, "Calculated normalized coordinates: (" + normalizedX + ", " + normalizedY + ")");
 
                 // 计算方向角度（从车尾到车头的方向与透视变换后的x坐标所形成的角）
                 double angle = calculateAngleFromRearToFront(normalizedRearCoords, normalizedFrontCoords);
-                Log.d(TAG, "Calculated angle: " + angle);
 
                 // 确保坐标在0-1范围内
                 if (normalizedX >= 0 && normalizedX <= 1 && normalizedY >= 0 && normalizedY <= 1) {
-                    Log.d(TAG, "Returning detection result: x=" + normalizedX + ", y=" + normalizedY + ", angle=" + angle);
-                    return new DetectionResult(normalizedX, normalizedY, angle, frontDetection.id);
-                } else {
-                    Log.d(TAG, "Coordinates out of range: x=" + normalizedX + ", y=" + normalizedY + 
-                          ", skipping result");
+                    DetectionResult result = new DetectionResult(normalizedX, normalizedY, angle, frontDetection.id);
+                    Log.d(TAG, "Successfully detected: " + result.toString());
+                    return result;
                 }
-            } else {
-                Log.d(TAG, "Insufficient tags detected. Base tags: " + baseDetections.size() + 
-                      ", Front tag: " + (frontDetection != null ? "YES" : "NO") +
-                      ", Rear tag: " + (rearDetection != null ? "YES" : "NO"));
             }
 
             return null;
@@ -385,7 +367,7 @@ public class AprilTagDetector {
     private boolean allCornersDetected() {
         for (int i = 0; i < 4; i++) {
             if (!cornerDetected[i]) {
-                Log.d(TAG, "Corner " + i + " (tag ID " + baseTagIds[i] + ") not detected");
+                // 移除不必要的日志
                 return false;
             }
         }
@@ -443,14 +425,12 @@ public class AprilTagDetector {
     private byte[] getYUVByteArray(ImageProxy image) {
         Image mediaImage = image.getImage();
         if (mediaImage == null) {
-            Log.e(TAG, "MediaImage is null");
             return null;
         }
 
         // 检查格式
         int format = mediaImage.getFormat();
         if (format != ImageFormat.YUV_420_888 && format != ImageFormat.NV21) {
-            Log.e(TAG, "Unsupported image format: " + format);
             mediaImage.close();
             return null;
         }
@@ -471,7 +451,6 @@ public class AprilTagDetector {
         
         // 确保有足够的平面
         if (planes.length < 3) {
-            Log.e(TAG, "Insufficient planes in YUV_420_888 image: " + planes.length);
             mediaImage.close();
             return null;
         }
@@ -481,7 +460,6 @@ public class AprilTagDetector {
         ByteBuffer vBuffer = planes[2].getBuffer();
 
         if (yBuffer == null || uBuffer == null || vBuffer == null) {
-            Log.e(TAG, "One of the plane buffers is null");
             mediaImage.close();
             return null;
         }
@@ -539,7 +517,6 @@ public class AprilTagDetector {
     private byte[] convertNv21Image(Image mediaImage) {
         Image.Plane[] planes = mediaImage.getPlanes();
         if (planes.length < 1) {
-            Log.e(TAG, "Insufficient planes in NV21 image: " + planes.length);
             mediaImage.close();
             return null;
         }

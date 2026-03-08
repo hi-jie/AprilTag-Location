@@ -40,12 +40,11 @@ public class MainActivity extends AppCompatActivity {
     private static final String[] REQUIRED_PERMISSIONS = {CAMERA};
 
     private PreviewView previewView;
-    private AprilTagOverlay overlayView;
     private ExecutorService cameraExecutor;
     private AprilTagAnalyzer aprilTagAnalyzer;
     private Button settingsButton;
     private NetworkSender networkSender;
-    private TextView coordinatesTextView; // 用于显示坐标和角度的文本视图
+    private TextView coordinatesTextView; // 用于显示坐标、角度和帧率的文本视图
     
     // AprilTag IDs for corners, front and rear
     public static int[] cornerTagIds = {0, 1, 2, 3}; // Default IDs for 4 corners
@@ -62,8 +61,6 @@ public class MainActivity extends AppCompatActivity {
 
         previewView = binding.previewView;
         settingsButton = binding.configButton;
-        // 获取布局中定义的AprilTagOverlay实例
-        overlayView = binding.aprilTagOverlay;
         
         // 初始化显示坐标和角度的TextView
         coordinatesTextView = new TextView(this);
@@ -125,18 +122,20 @@ public class MainActivity extends AppCompatActivity {
 
             // Initialize analyzer
             aprilTagAnalyzer = new AprilTagAnalyzer(detector, networkSender, this);
-            // Set overlay view
-            aprilTagAnalyzer.setOverlayView(overlayView);
             
             // 设置检测结果回调，更新坐标显示
             aprilTagAnalyzer.setOnDetectionResultListener(result -> {
                 runOnUiThread(() -> {
                     if (result != null) {
-                        String coordsText = String.format("X: %.3f, Y: %.3f, Angle: %.1f°", 
-                            result.x, result.y, result.angle);
+                        // 获取当前帧率并显示
+                        double fps = aprilTagAnalyzer.getCurrentFps();
+                        String coordsText = String.format("X: %.3f, Y: %.3f, Angle: %.1f°\nFPS: %.1f", 
+                            result.x, result.y, result.angle, fps);
                         coordinatesTextView.setText(coordsText);
                     } else {
-                        coordinatesTextView.setText("未检测到标签");
+                        // 即使没有检测到结果，也要显示帧率
+                        double fps = aprilTagAnalyzer.getCurrentFps();
+                        coordinatesTextView.setText(String.format("未检测到标签\nFPS: %.1f", fps));
                     }
                 });
             });
@@ -150,8 +149,9 @@ public class MainActivity extends AppCompatActivity {
                     Preview preview = new Preview.Builder().build();
                     preview.setSurfaceProvider(previewView.getSurfaceProvider());
 
+                    // 优化相机配置以提高性能
                     ImageAnalysis imageAnalysis = new ImageAnalysis.Builder()
-                            .setTargetResolution(new Size(1280, 720))
+                            .setTargetResolution(new Size(640, 480))  // 降低分辨率以提高处理速度
                             .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
                             .build();
                     imageAnalysis.setAnalyzer(cameraExecutor, aprilTagAnalyzer);

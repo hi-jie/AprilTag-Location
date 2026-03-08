@@ -5,152 +5,120 @@ import android.content.SharedPreferences;
 import android.os.Handler;
 import android.os.Looper;
 import android.util.Log;
-import android.widget.Toast;
 
 import android.preference.PreferenceManager;
 
-import org.json.JSONObject;
-
-import java.io.IOException;
-import java.util.concurrent.TimeUnit;
-
-import okhttp3.Call;
-import okhttp3.Callback;
-import okhttp3.MediaType;
-import okhttp3.OkHttpClient;
-import okhttp3.Request;
-import okhttp3.RequestBody;
-import okhttp3.Response;
+import java.net.DatagramPacket;
+import java.net.DatagramSocket;
+import java.net.InetAddress;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 public class NetworkSender {
     private static final String TAG = "NetworkSender";
-    // 创建一个具有超时设置的OkHttpClient实例
-    private final OkHttpClient client = new OkHttpClient.Builder()
-            .connectTimeout(15, TimeUnit.SECONDS)      // 增加连接超时时间
-            .writeTimeout(15, TimeUnit.SECONDS)       // 增加写入超时时间
-            .readTimeout(30, TimeUnit.SECONDS)        // 增加读取超时时间
-            // 允许自签名证书，方便开发调试
-            .hostnameVerifier((hostname, session) -> true)
-            .build();
     private Handler mainHandler = new Handler(Looper.getMainLooper());
     private int serverPort = 8080; // 默认端口
     private String serverAddress = "192.168.31.131"; // 默认IP
+    
+    // 添加变量来跟踪上次发送的数据，实现仅在变化时发送
+    private double lastX = Double.NaN;
+    private double lastY = Double.NaN;
+    private double lastAngle = Double.NaN;
+    
+    // 添加发送频率控制
+    private long lastSendTime = 0;
+    private static final long MIN_SEND_INTERVAL = 50; // 最小发送间隔50ms (约20Hz)
+    
+    // UDP socket相关
+    private DatagramSocket udpSocket = null;
+    private InetAddress serverInetAddress = null;
+    
+    // 线程池用于UDP发送
+    private final ExecutorService udpExecutor = Executors.newSingleThreadExecutor();
 
     public NetworkSender() {
         // 加载默认设置
         loadSettings();
+        initUdpSocket();
+    }
+    
+    private void initUdpSocket() {
+        try {
+            udpSocket = new DatagramSocket();
+        } catch (Exception e) {
+            Log.e(TAG, "Failed to create UDP socket", e);
+        }
     }
 
     public void sendLocationData(double x, double y, double angle) {
-        Log.d(TAG, String.format("Received location data - x: %.3f, y: %.3f, angle: %.1f", x, y, angle));
-        
-        // 创建JSON数据
-        JSONObject json = new JSONObject();
-        try {
-            json.put("x", x);
-            json.put("y", y);
-            json.put("angle", angle);
-        } catch (Exception e) {
-            Log.e(TAG, "Error creating JSON", e);
-            return;
+        // 检查数据是否变化，如果没有变化则不发送
+        if (Double.isNaN(lastX) || lastX != x || lastY != y || lastAngle != angle) {
+            // 检查是否达到了最小发送间隔
+            long currentTime = System.currentTimeMillis();
+            if (currentTime - lastSendTime >= MIN_SEND_INTERVAL) {
+                performSend(x, y, angle);
+            }
         }
+    }
 
+    private void performSend(double x, double y, double angle) {
+        // 更新上次发送的数据
+        lastX = x;
+        lastY = y;
+        lastAngle = angle;
+        lastSendTime = System.currentTimeMillis();
+        
         // 从SharedPreferences获取最新的服务器配置
-        String currentServerAddress;
-        int currentServerPort;
+        int tempServerPort;
+        String tempServerAddress;
 
         try {
             Context context = MyApplication.getContext();
             if (context != null) {
                 SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(context);
-                currentServerPort = prefs.getInt("server_port", 8080);
-                currentServerAddress = prefs.getString("server_address", "192.168.31.131");
+                tempServerPort = prefs.getInt("server_port", 8080);
+                tempServerAddress = prefs.getString("server_address", "192.168.31.131");
             } else {
                 Log.e(TAG, "Context is null, using defaults");
-                currentServerPort = this.serverPort;
-                currentServerAddress = this.serverAddress;
+                tempServerPort = this.serverPort;
+                tempServerAddress = this.serverAddress;
             }
         } catch (Exception e) {
             Log.e(TAG, "Error reading preferences", e);
             // 使用实例变量作为备用
-            currentServerPort = this.serverPort;
-            currentServerAddress = this.serverAddress;
+            tempServerPort = this.serverPort;
+            tempServerAddress = this.serverAddress;
         }
 
         // 确保服务器地址不为空
-        if (currentServerAddress == null || currentServerAddress.trim().isEmpty()) {
+        if (tempServerAddress == null || tempServerAddress.trim().isEmpty()) {
             Log.e(TAG, "Server address is empty, using default");
-            currentServerAddress = "192.168.31.131";
+            tempServerAddress = "192.168.31.131";
         }
 
-        String url = "http://" + currentServerAddress + ":" + currentServerPort + "/api/location";
-        RequestBody body = RequestBody.create(json.toString(), MediaType.get("application/json; charset=utf-8"));
-        Request request = new Request.Builder()
-                .url(url)
-                .post(body)
-                .addHeader("Content-Type", "application/json; charset=utf-8")
-                .build();
+        // 创建final变量以供lambda表达式使用
+        final int finalServerPort = tempServerPort;
+        final String finalServerAddress = tempServerAddress;
 
-        Log.d(TAG, "Sending location data to: " + url);
-        Log.d(TAG, "Payload: " + json.toString());
-
-        client.newCall(request).enqueue(new Callback() {
-            @Override
-            public void onFailure(Call call, IOException e) {
-                Log.e(TAG, "Network request failed", e);
-                Log.e(TAG, "Attempted URL: " + url);
-                // 在主线程上显示Toast，添加对context的空值检查
-                mainHandler.post(() -> {
-                    Context context = MyApplication.getContext();
-                    if (context != null) {
-                        String errorMessage = "Failed to send location: " + e.getClass().getSimpleName() + 
-                                             " - " + e.getMessage();
-                        Log.e(TAG, "Detailed error: " + errorMessage);
-                        Toast.makeText(context, errorMessage, Toast.LENGTH_LONG).show();
-                    } else {
-                        Log.e(TAG, "Context is null, cannot show toast: " + e.getMessage());
-                    }
-                });
-            }
-
-            @Override
-            public void onResponse(Call call, Response response) throws IOException {
-                final String responseBodyStr;
-                if (response.isSuccessful()) {
-                    Log.d(TAG, "Location data sent successfully, code: " + response.code());
-                    responseBodyStr = "Success";
-                    // 在主线程上显示成功消息（可选）
-                    mainHandler.post(() -> {
-                        Context context = MyApplication.getContext();
-                        if (context != null) {
-                            Log.d(TAG, "Response successful: " + response.code());
-                            // 添加成功提示
-                            Toast.makeText(context, "Location data sent successfully", 
-                                          Toast.LENGTH_SHORT).show();
-                        }
-                    });
-                } else {
-                    Log.e(TAG, "Server error: " + response.code());
-                    String responseContent = "";
-                    try {
-                        responseContent = response.body().string();
-                    } catch (IOException e) {
-                        Log.e(TAG, "Error reading response body", e);
-                    }
-                    Log.e(TAG, "Response body: " + responseContent);
-                    responseBodyStr = responseContent;
+        // 创建纯文本数据格式：x,y,angle
+        String payload = String.format("%.3f,%.3f,%.3f", x, y, angle);
+        
+        // 在单独的线程中发送UDP数据
+        udpExecutor.execute(() -> {
+            try {
+                InetAddress address = InetAddress.getByName(finalServerAddress);
+                byte[] buffer = payload.getBytes();
+                DatagramPacket packet = new DatagramPacket(buffer, buffer.length, 
+                    address, finalServerPort);
                     
-                    // 在主线程上显示错误消息
-                    mainHandler.post(() -> {
-                        Context context = MyApplication.getContext();
-                        if (context != null) {
-                            Toast.makeText(context, 
-                                    "Server error " + response.code() + ": " + responseBodyStr, 
-                                    Toast.LENGTH_LONG).show();
-                        }
-                    });
+                if (udpSocket != null && !udpSocket.isClosed()) {
+                    udpSocket.send(packet);
+                    Log.d(TAG, "UDP packet sent: " + payload + " to " + finalServerAddress + ":" + finalServerPort);
+                } else {
+                    Log.e(TAG, "UDP socket is null or closed");
                 }
-                response.body().close();
+            } catch (Exception e) {
+                Log.e(TAG, "UDP send failed: " + e.getMessage(), e);
             }
         });
     }
@@ -176,7 +144,10 @@ public class NetworkSender {
     }
 
     public void cleanup() {
-        // 清理资源
-        client.dispatcher().cancelAll();
+        // 关闭UDP socket和线程池
+        if (udpSocket != null && !udpSocket.isClosed()) {
+            udpSocket.close();
+        }
+        udpExecutor.shutdown();
     }
 }
