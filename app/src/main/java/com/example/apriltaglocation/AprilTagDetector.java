@@ -137,6 +137,7 @@ public class AprilTagDetector {
             // 使用AprilTag原生库检测标签 - 添加异常处理
             List<ApriltagDetection> detections;
             try {
+                // 现在传入的是纯灰度数据（只有Y层），AprilTag算法可以处理灰度图像
                 detections = ApriltagNative.apriltag_detect_yuv(nv21Bytes, width, height);
             } catch (UnsatisfiedLinkError e) {
                 Log.e(TAG, "AprilTag native detection failed: " + e.getMessage());
@@ -435,16 +436,19 @@ public class AprilTagDetector {
             return null;
         }
 
-        // 处理YUV_420_888格式
+        // 处理YUV_420_888格式 - 只取Y层数据
         if (format == ImageFormat.YUV_420_888) {
-            return convertYuv420ToNv21(mediaImage);
+            return convertYuv420ToGrayscale(mediaImage);
         } else {
-            // 处理NV21格式
-            return convertNv21Image(mediaImage);
+            // 处理NV21格式 - 也需要只取Y层
+            return convertNv21ToGrayscale(mediaImage);
         }
     }
     
-    private byte[] convertYuv420ToNv21(Image mediaImage) {
+    /**
+     * 从YUV_420_888格式图像中只提取Y层（灰度）数据
+     */
+    private byte[] convertYuv420ToGrayscale(Image mediaImage) {
         Image.Plane[] planes = mediaImage.getPlanes();
         int width = mediaImage.getWidth();
         int height = mediaImage.getHeight();
@@ -455,79 +459,39 @@ public class AprilTagDetector {
             return null;
         }
 
-        ByteBuffer yBuffer = planes[0].getBuffer();
-        ByteBuffer uBuffer = planes[1].getBuffer();
-        ByteBuffer vBuffer = planes[2].getBuffer();
+        ByteBuffer yBuffer = planes[0].getBuffer(); // Y平面
 
-        if (yBuffer == null || uBuffer == null || vBuffer == null) {
+        if (yBuffer == null) {
             mediaImage.close();
             return null;
         }
 
-        // 获取每个平面的像素间距和偏移
+        // 只复制Y平面的数据（灰度图）
         int ySize = yBuffer.remaining();
-        int uSize = uBuffer.remaining();
-        int vSize = vBuffer.remaining();
-
-        int uvPixelStride = planes[1].getPixelStride();
-        int vPixelStride = planes[2].getPixelStride();
-        int uPixelOffset = planes[1].getRowStride() - uSize / height;
-        int vPixelOffset = planes[2].getRowStride() - vSize / height;
-
-        // NV21格式是YYYYYYYYVUUVUU这样的排列，V和U交替存储
-        int size = ySize + (int)(ySize * 0.5); // UV部分是Y部分的一半大小
-        byte[] nv21 = new byte[size];
-
-        // 读取Y通道
-        yBuffer.get(nv21, 0, ySize);
-
-        // 读取UV通道
-        int halfHeight = height / 2;
-        int halfWidth = width / 2;
-        int index = ySize;
-        
-        // 交错读取V和U值
-        for (int row = 0; row < halfHeight; row++) {
-            int vuRowStart = row * planes[2].getRowStride() + vPixelOffset;
-            int uvRowStart = row * planes[1].getRowStride() + uPixelOffset;
-
-            for (int col = 0; col < halfWidth; col++) {
-                // 读取V值
-                if (vuRowStart + col * vPixelStride < vBuffer.capacity()) {
-                    vBuffer.position(vuRowStart + col * vPixelStride);
-                    nv21[index++] = vBuffer.get();
-                } else {
-                    nv21[index++] = 0; // 填充0作为默认值
-                }
-
-                // 读取U值
-                if (uvRowStart + col * uvPixelStride < uBuffer.capacity()) {
-                    uBuffer.position(uvRowStart + col * uvPixelStride);
-                    nv21[index++] = uBuffer.get();
-                } else {
-                    nv21[index++] = 0; // 填充0作为默认值
-                }
-            }
-        }
+        byte[] grayscale = new byte[ySize];
+        yBuffer.get(grayscale, 0, ySize);
 
         mediaImage.close();
-        return nv21;
+        return grayscale;
     }
 
-    private byte[] convertNv21Image(Image mediaImage) {
+    /**
+     * 从NV21格式图像中只提取Y层（灰度）数据
+     */
+    private byte[] convertNv21ToGrayscale(Image mediaImage) {
         Image.Plane[] planes = mediaImage.getPlanes();
         if (planes.length < 1) {
             mediaImage.close();
             return null;
         }
 
-        ByteBuffer buffer = planes[0].getBuffer();
-        int pixelCount = buffer.remaining();
-        byte[] data = new byte[pixelCount];
-        buffer.get(data);
+        ByteBuffer buffer = planes[0].getBuffer(); // Y平面
+        int ySize = buffer.remaining();
+        byte[] grayscale = new byte[ySize];
+        buffer.get(grayscale, 0, ySize);
 
         mediaImage.close();
-        return data;
+        return grayscale;
     }
     
     public void updateSettings(int[] baseTagIds, int frontTagId, int rearTagId, String tagFamily) {
