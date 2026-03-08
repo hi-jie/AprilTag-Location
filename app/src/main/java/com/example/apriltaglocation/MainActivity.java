@@ -17,6 +17,7 @@ import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.camera.core.AspectRatio;
 import androidx.camera.core.CameraSelector;
 import androidx.camera.core.ImageAnalysis;
 import androidx.camera.core.ImageProxy;
@@ -146,12 +147,14 @@ public class MainActivity extends AppCompatActivity {
                 try {
                     ProcessCameraProvider cameraProvider = cameraProviderFuture.get();
 
-                    Preview preview = new Preview.Builder().build();
+                    Preview preview = new Preview.Builder()
+                            .setTargetResolution(new Size(1080, 1920)) // 设置为9:16分辨率
+                            .build();
                     preview.setSurfaceProvider(previewView.getSurfaceProvider());
 
                     // 优化相机配置以提高性能
                     ImageAnalysis imageAnalysis = new ImageAnalysis.Builder()
-                            .setTargetResolution(new Size(640, 480))  // 降低分辨率以提高处理速度
+                            .setTargetResolution(new Size(540, 960))  // 降低分辨率以提高处理速度，保持9:16比例
                             .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
                             .build();
                     imageAnalysis.setAnalyzer(cameraExecutor, aprilTagAnalyzer);

@@ -20,49 +20,20 @@
 
 ## 使用教程
 
-### 1. 项目构建教程
+### 1. App使用
 
-#### 前提条件
-- Android Studio (推荐最新版本)
-- Android SDK (API Level 21+)
-- 设备支持相机权限
-
-#### 构建步骤
-
-1. 克隆项目到本地：
-   ```bash
-   git clone <项目地址>
-   cd apriltag-location
-   ```
-
-2. 打开Android Studio，导入项目：
-   - 启动Android Studio
-   - 选择 "Open an existing project"
-   - 导航到项目根目录并打开
-
-3. 同步Gradle依赖：
-   - Android Studio会自动提示同步项目依赖
-   - 点击 "Sync Now" 或在菜单中选择 "File" → "Sync Project with Gradle Files"
-
-4. 连接Android设备并启用开发者模式：
-   - 启用USB调试
-   - 授权当前电脑访问设备
-
-5. 编译并安装应用：
-   - 在Android Studio中点击绿色的运行按钮 ▶️
-   - 或使用命令行：
-     ```bash
-     ./gradlew installDebug
-     ```
-
-6. 配置应用参数（首次运行）：
    - 打开应用后点击"设置"按钮
    - 配置AprilTag家族类型（如tag16h5）
    - 设置四个角点标签ID（用于建立坐标系）
    - 设置前后标签ID（用于定位目标位置和角度）
-   - 配置UDP目标IP地址和端口
 
-### 2. Python接收程序示例
+### 2. 信息接收
+
+1. 确保Android设备与PC处于同一个局域网内
+
+2. 信息使用UDP协议进行传输，类型为纯文本，格式为 `x,y,angle`
+
+3. 信息接收：
 
 项目自带了一个Python UDP接收程序，可以接收Android端发送的位置和角度数据：
 
@@ -85,45 +56,54 @@ def udp_receiver(host='0.0.0.0', port=8080):
     接收Android端通过UDP发送的AprilTag位置和角度数据
     
     数据格式: x,y,angle
-    例如: -0.123,0.456,90.5
+    例如: 0.12345,0.67890,90.50000
     """
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    sock.bind((host, port))
-    print(f"UDP接收器已启动，监听 {host}:{port}")
+    sock.settimeout(2.0)  # 设置超时
+    try:
+        sock.bind((host, port))
+        print(f"UDP接收器已启动，监听 {host}:{port}")
+    except Exception as e:
+        print(f"错误: {e}")
+        return
 
     # 用于计算帧率
     frame_times = deque(maxlen=30)
     last_print_time = time.time()
 
-    print("等待接收数据...")
+    print("等待接收数据... (按 Ctrl+C 退出)")
     try:
         while True:
-            # 接收数据
-            data, addr = sock.recvfrom(1024)
-            current_time = time.time()
-            
-            # 记录时间用于计算帧率
-            frame_times.append(current_time)
-            
-            # 解析数据 (格式: x,y,angle)
-            decoded_data = data.decode('utf-8').strip()
-            values = decoded_data.split(',')
-            
-            x, y, angle = map(float, values)
-            print(f"[{addr[0]}:{addr[1]}] X:{x:.3f}, Y:{y:.3f}, Angle:{angle:.1f}°")
-            
-            # 这里可以添加你的处理逻辑
-            # 例如: 绘制轨迹、存储数据、触发其他操作等
-            
-            # 每秒计算并输出一次帧率
-            if current_time - last_print_time >= 1.0:
-                if len(frame_times) > 1:
-                    time_window = frame_times[-1] - frame_times[0]
-                    if time_window > 0:
-                        fps = (len(frame_times) - 1) / time_window
-                        print(f"接收帧率: {fps:.2f} FPS")
+            try:
+                # 接收数据
+                data, addr = sock.recvfrom(1024)
+                current_time = time.time()
                 
-                last_print_time = current_time
+                # 记录时间用于计算帧率
+                frame_times.append(current_time)
+                
+                # 解析数据 (格式: x,y,angle)
+                decoded_data = data.decode('utf-8').strip()
+                values = decoded_data.split(',')
+                
+                if len(values) == 3:
+                    x, y, angle = map(float, values)
+                    print(f"[{addr[0]}:{addr[1]}] X:{x:.5f}, Y:{y:.5f}, Angle:{angle:.5f}°")
+                else:
+                    print(f"警告: 接收到格式错误的数据: {decoded_data}")
+                
+                # 每秒计算并输出一次帧率
+                if current_time - last_print_time >= 1.0:
+                    if len(frame_times) > 1:
+                        time_window = frame_times[-1] - frame_times[0]
+                        if time_window > 0:
+                            fps = (len(frame_times) - 1) / time_window
+                            print(f"接收帧率: {fps:.2f} FPS")
+                    
+                    last_print_time = current_time
+            
+            except socket.timeout:
+                continue  # 继续等待数据
                 
     except KeyboardInterrupt:
         print("\n接收器已停止")
@@ -131,16 +111,11 @@ def udp_receiver(host='0.0.0.0', port=8080):
         sock.close()
 
 if __name__ == "__main__":
-    # 可以修改主机和端口号
+    # 运行接收器
     udp_receiver(host='0.0.0.0', port=8080)
 ```
 
-#### 使用说明
-
-1. 确保Android设备和运行Python脚本的设备在同一个局域网内
-2. 在Android应用中设置正确的IP地址和端口（默认是8080）
-3. 先运行Python接收脚本，再启动Android应用
-4. 观察控制台输出，应该能看到实时的位置和角度数据
+## 其他
 
 ### 应用场景
 
