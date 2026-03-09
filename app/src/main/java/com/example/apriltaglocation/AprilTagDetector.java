@@ -30,7 +30,6 @@ public class AprilTagDetector {
     
     // 用于计算位置的四个角点
     private double[][] cornerPositions = new double[4][2];
-    private boolean[] cornerDetected = new boolean[4];
     
     // 添加锁对象，用于同步访问
     private final Object detectorLock = new Object();
@@ -78,7 +77,7 @@ public class AprilTagDetector {
                 ApriltagNative.apriltag_init(tagFamily, 0, 1.5, 0.0, 4); // 增加降采样因子和线程数
             } else {
                 // 对于其他tag族，使用相对宽松的参数
-                ApriltagNative.apriltag_init(tagFamily, 2, 2, 0.0, 4); // 增加降采样因子和线程数
+                ApriltagNative.apriltag_init(tagFamily, 2, 1.5, 0.0, 4); // 增加降采样因子和线程数
             }
         } catch (UnsatisfiedLinkError e) {
             Log.e(TAG, "Failed to initialize AprilTag native library: " + e.getMessage());
@@ -524,63 +523,6 @@ public class AprilTagDetector {
         return solution;
     }
 
-    private boolean allCornersDetected() {
-        for (int i = 0; i < 4; i++) {
-            if (!cornerDetected[i]) {
-                // 移除不必要的日志
-                return false;
-            }
-        }
-        return true;
-    }
-
-    private double[] calculateRelativePosition(double targetX, double targetY) {
-        // 获取四个基准标签的坐标
-        double x1 = cornerPositions[0][0]; // 左上角
-        double y1 = cornerPositions[0][1];
-        double x2 = cornerPositions[1][0]; // 右上角
-        double y2 = cornerPositions[1][1];
-        double x3 = cornerPositions[2][0]; // 右下角
-        double y3 = cornerPositions[2][1];
-        double x4 = cornerPositions[3][0]; // 左下角
-        double y4 = cornerPositions[3][1];
-        
-        // 计算场地坐标系的边界
-        double minX = Math.min(Math.min(x1, x2), Math.min(x3, x4));
-        double maxX = Math.max(Math.max(x1, x2), Math.max(x3, x4));
-        double minY = Math.min(Math.min(y1, y2), Math.min(y3, y4));
-        double maxY = Math.max(Math.max(y1, y2), Math.max(y3, y4));
-        
-        // 将目标坐标归一化到[0, 1]区间
-        double normX = (targetX - minX) / (maxX - minX);
-        double normY = (targetY - minY) / (maxY - minY);
-        
-        // 确保归一化坐标在[0, 1]范围内
-        normX = Math.max(0, Math.min(1, normX));
-        normY = Math.max(0, Math.min(1, normY));
-        
-        return new double[]{normX, normY};
-    }
-
-    private double calculateAngleFromCorners(ApriltagDetection detection) {
-        // 计算AprilTag的方向角
-        // 使用第一个和第二个角点来确定方向
-        double x0 = detection.p[0]; // 第一个角点x坐标
-        double y0 = detection.p[1]; // 第一个角点y坐标
-        double x1 = detection.p[2]; // 第二个角点x坐标
-        double y1 = detection.p[3]; // 第二个角点y坐标
-        
-        // 计算从第一个角点到第二个角点的角度
-        double angleRad = Math.atan2(y1 - y0, x0 - x1);
-        double angleDeg = Math.toDegrees(angleRad);
-        
-        // 确保角度在0-360度范围内
-        if (angleDeg < 0) {
-            angleDeg += 360;
-        }
-        
-        return angleDeg;
-    }
 
     private byte[] getYUVByteArray(ImageProxy image) {
         Image mediaImage = image.getImage();
