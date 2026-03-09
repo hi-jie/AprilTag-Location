@@ -47,10 +47,9 @@ public class MainActivity extends AppCompatActivity {
     private NetworkSender networkSender;
     private TextView coordinatesTextView; // 用于显示坐标、角度和帧率的文本视图
     
-    // AprilTag IDs for corners, front and rear
+    // AprilTag IDs for corners and vehicle
     public static int[] cornerTagIds = {0, 1, 2, 3}; // Default IDs for 4 corners
-    public static int frontTagId = 4; // Front tag ID
-    public static int rearTagId = 5; // Rear tag ID
+    public static int vehicleTagId = 4; // Vehicle tag ID (single tag, no front/rear distinction)
     public static int serverPort = 8080; // Default port for sending data
 
     @Override
@@ -118,8 +117,8 @@ public class MainActivity extends AppCompatActivity {
             // Load settings from SharedPreferences
             loadSettings();
 
-            // Create AprilTagDetector with corner, front and rear tag IDs
-            AprilTagDetector detector = new AprilTagDetector(cornerTagIds, frontTagId, rearTagId);
+            // Create AprilTagDetector with corner and vehicle tag IDs (single tag, no front/rear distinction)
+            AprilTagDetector detector = new AprilTagDetector(cornerTagIds, vehicleTagId);
 
             // Initialize analyzer
             aprilTagAnalyzer = new AprilTagAnalyzer(detector, networkSender, this);
@@ -195,9 +194,8 @@ public class MainActivity extends AppCompatActivity {
                 prefs.getInt("base_tag_4", 3)
             };
             
-            // Load front and rear tag IDs
-            int newFrontTagId = prefs.getInt("front_tag", 4);
-            int newRearTagId = prefs.getInt("rear_tag", 5);
+            // Load vehicle tag ID (single tag, no front/rear distinction)
+            int newVehicleTagId = prefs.getInt("front_tag", 4);
             
             // Load server port
             int newServerPort = prefs.getInt("server_port", 8080);
@@ -207,13 +205,12 @@ public class MainActivity extends AppCompatActivity {
             
             // Update static variables
             cornerTagIds = newCornerTagIds;
-            frontTagId = newFrontTagId;
-            rearTagId = newRearTagId;
+            vehicleTagId = newVehicleTagId;  // Now using single vehicle tag ID
             serverPort = newServerPort;
             
             // Update analyzer with new settings if they've changed
             if (aprilTagAnalyzer != null) {
-                aprilTagAnalyzer.updateSettings(cornerTagIds, frontTagId, rearTagId, tagFamily);
+                aprilTagAnalyzer.updateSettings(cornerTagIds, vehicleTagId, tagFamily);
             }
             
             // Update network sender with new port

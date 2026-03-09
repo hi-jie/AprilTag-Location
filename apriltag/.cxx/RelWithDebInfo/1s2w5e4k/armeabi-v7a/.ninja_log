@@ -33,3 +33,5 @@
 12	764	794585974	CMakeFiles/apriltag.dir/src/main/cpp/apriltag_quad_thresh.c.o	a0f41c8426f1f1a4
 336	796	794585974	CMakeFiles/apriltag.dir/src/main/cpp/apriltag_jni.cpp.o	4ce3425f2fce6c84
 796	1046	794585974	../../../../build/intermediates/cxx/RelWithDebInfo/1s2w5e4k/obj/armeabi-v7a/libapriltag.so	24dd8c099a4a869c
+1	11	0	clean	28b2e898dbf91968
+0	8	0	clean	28b2e898dbf91968

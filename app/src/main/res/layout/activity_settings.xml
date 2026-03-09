@@ -93,35 +93,17 @@
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Vehicle Tag IDs:"
+            android:text="Vehicle Tag ID:"
             android:textSize="16sp"
             android:layout_marginBottom="8dp"/>
 
-        <LinearLayout
+        <EditText
+            android:id="@+id/vehicleTagId"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:layout_marginBottom="16dp">
-
-            <EditText
-                android:id="@+id/frontTagId"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:hint="Front Tag"
-                android:inputType="number"
-                android:layout_marginEnd="8dp"/>
-
-            <EditText
-                android:id="@+id/rearTagId"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:hint="Rear Tag"
-                android:inputType="number"
-                android:layout_marginStart="8dp"/>
-
-        </LinearLayout>
+            android:hint="Vehicle Tag (single tag, no front/rear distinction)"
+            android:inputType="number"
+            android:layout_marginBottom="16dp"/>
 
         <Button
             android:id="@+id/saveSettingsButton"

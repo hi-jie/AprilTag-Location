@@ -21,8 +21,7 @@ public class AprilTagDetector {
     private static final String TAG = "AprilTagDetector";
     
     private int[] baseTagIds;
-    private int frontTagId;
-    private int rearTagId;
+    private int vehicleTagId;  // 单个标签ID代表小车，不再区分车头和车尾
     private String tagFamily;
     
     // 根据tag族类型设置不同的Hamming距离阈值
@@ -36,20 +35,18 @@ public class AprilTagDetector {
     // 添加锁对象，用于同步访问
     private final Object detectorLock = new Object();
 
-    public AprilTagDetector(int[] baseTagIds, int frontTagId, int rearTagId) {
+    public AprilTagDetector(int[] baseTagIds, int vehicleTagId) {
         this.baseTagIds = baseTagIds;
-        this.frontTagId = frontTagId;
-        this.rearTagId = rearTagId;
+        this.vehicleTagId = vehicleTagId;
         this.tagFamily = "tag16h5"; // 默认使用tag16h5
         
         updateThresholdsByTagFamily(); // 根据tag族更新阈值
         initializeDetector();
     }
 
-    public AprilTagDetector(int[] baseTagIds, int frontTagId, int rearTagId, String tagFamily) {
+    public AprilTagDetector(int[] baseTagIds, int vehicleTagId, String tagFamily) {
         this.baseTagIds = baseTagIds;
-        this.frontTagId = frontTagId;
-        this.rearTagId = rearTagId;
+        this.vehicleTagId = vehicleTagId;
         this.tagFamily = tagFamily != null ? tagFamily : "tag16h5";
         
         updateThresholdsByTagFamily(); // 根据tag族更新阈值
@@ -153,8 +150,7 @@ public class AprilTagDetector {
             }
 
             // 查找目标标签和基准标签
-            ApriltagDetection frontDetection = null;
-            ApriltagDetection rearDetection = null;
+            ApriltagDetection vehicleDetection = null;  // 只需要一个车辆标签，不再区分前后
             List<ApriltagDetection> baseDetections = new ArrayList<>();
 
             for (ApriltagDetection detection : detections) {
@@ -174,16 +170,14 @@ public class AprilTagDetector {
                 }
                 
                 if (!isBaseTag) {
-                    if (detection.id == frontTagId) {
-                        frontDetection = detection;
-                    } else if (detection.id == rearTagId) {
-                        rearDetection = detection;
+                    if (detection.id == vehicleTagId) {  // 检测车辆标签，不再区分前后
+                        vehicleDetection = detection;
                     }
                 }
             }
 
             // 确保找到了所有必需的标签
-            if (baseDetections.size() >= 4 && frontDetection != null && rearDetection != null) {
+            if (baseDetections.size() >= 4 && vehicleDetection != null) {  // 不再需要rearDetection
                 // 计算四个基准标签的位置（左下、右下、左上、右上）
                 for (ApriltagDetection baseDetection : baseDetections) {
                     // 根据检测到的标签ID确定位置
@@ -196,24 +190,21 @@ public class AprilTagDetector {
                     }
                 }
 
-                // 计算车头车尾连线的中心点作为小车位置
-                double centerX = (frontDetection.c[0] + rearDetection.c[0]) / 2.0;
-                double centerY = (frontDetection.c[1] + rearDetection.c[1]) / 2.0;
+                // 直接使用车辆标签的中心点作为小车位置
+                double centerX = vehicleDetection.c[0];
+                double centerY = vehicleDetection.c[1];
 
                 // 使用透视变换计算归一化坐标
                 double[] normalizedCenterCoords = calculateNormalizedCoordinates(centerX, centerY);
-                double[] normalizedFrontCoords = calculateNormalizedCoordinates(frontDetection.c[0], frontDetection.c[1]);
-                double[] normalizedRearCoords = calculateNormalizedCoordinates(rearDetection.c[0], rearDetection.c[1]);
-                
                 double normalizedX = normalizedCenterCoords[0];
                 double normalizedY = normalizedCenterCoords[1];
 
-                // 计算方向角度（从车尾到车头的方向与透视变换后的x坐标所形成的角）
-                double angle = calculateAngleFromRearToFront(normalizedRearCoords, normalizedFrontCoords);
+                // 计算方向角度 - 由于只有一个标签，我们不能计算方向，所以返回-1或其他默认值
+                double angle = calculateAngleFromCorners(vehicleDetection);  // 计算标签本身的角度
 
                 // 确保坐标在0-1范围内
                 if (normalizedX >= 0 && normalizedX <= 1 && normalizedY >= 0 && normalizedY <= 1) {
-                    DetectionResult result = new DetectionResult(normalizedX, normalizedY, angle, frontDetection.id);
+                    DetectionResult result = new DetectionResult(normalizedX, normalizedY, angle, vehicleDetection.id);
                     Log.d(TAG, "Successfully detected: " + result.toString());
                     return result;
                 }
@@ -494,10 +485,9 @@ public class AprilTagDetector {
         return grayscale;
     }
     
-    public void updateSettings(int[] baseTagIds, int frontTagId, int rearTagId, String tagFamily) {
+    public void updateSettings(int[] baseTagIds, int vehicleTagId, String tagFamily) {
         this.baseTagIds = baseTagIds;
-        this.frontTagId = frontTagId;
-        this.rearTagId = rearTagId;
+        this.vehicleTagId = vehicleTagId;  // 现在只需要一个车辆标签ID
         
         // 如果tag族发生变化，则重新初始化检测器
         if (!this.tagFamily.equals(tagFamily)) {
@@ -509,23 +499,6 @@ public class AprilTagDetector {
         }
     }
 
-    // 计算从车尾到车头的方向角度（基于透视变换后的坐标）
-    private double calculateAngleFromRearToFront(double[] rearCoords, double[] frontCoords) {
-        // 计算从车尾到车头的向量
-        double dx = frontCoords[0] - rearCoords[0];
-        double dy = frontCoords[1] - rearCoords[1];
-        
-        // 计算角度（弧度转换为度）
-        double angleRad = Math.atan2(dy, dx);
-        double angleDeg = Math.toDegrees(angleRad);
-        
-        // 确保角度在0-360度范围内
-        if (angleDeg < 0) {
-            angleDeg += 360;
-        }
-        
-        return angleDeg;
-    }
 
     // 检测结果内部类
     public static class DetectionResult {

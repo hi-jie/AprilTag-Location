@@ -14,8 +14,7 @@ import androidx.appcompat.app.AppCompatActivity;
 public class SettingsActivity extends AppCompatActivity {
 
     private EditText corner1EditText, corner2EditText, corner3EditText, corner4EditText;
-    private EditText frontTagEditText;
-    private EditText rearTagEditText;
+    private EditText vehicleTagEditText;  // 单个车辆标签编辑框，不再区分前后
     private Spinner tagFamilySpinner;
     private Button saveButton;
 
@@ -48,8 +47,7 @@ public class SettingsActivity extends AppCompatActivity {
         corner2EditText = findViewById(R.id.corner2TagId);
         corner3EditText = findViewById(R.id.corner3TagId);
         corner4EditText = findViewById(R.id.corner4TagId);
-        frontTagEditText = findViewById(R.id.frontTagId);
-        rearTagEditText = findViewById(R.id.rearTagId);
+        vehicleTagEditText = findViewById(R.id.vehicleTagId);  // 更改了控件ID
         tagFamilySpinner = findViewById(R.id.tagFamilySpinner);
         saveButton = findViewById(R.id.saveSettingsButton);
     }
@@ -61,9 +59,7 @@ public class SettingsActivity extends AppCompatActivity {
         corner2EditText.setText(String.valueOf(prefs.getInt("base_tag_2", 1)));
         corner3EditText.setText(String.valueOf(prefs.getInt("base_tag_3", 2)));
         corner4EditText.setText(String.valueOf(prefs.getInt("base_tag_4", 3)));
-        frontTagEditText.setText(String.valueOf(prefs.getInt("front_tag", 4)));
-        rearTagEditText.setText(String.valueOf(prefs.getInt("rear_tag", 5)));
-        // 移除了服务器地址和端口的加载
+        vehicleTagEditText.setText(String.valueOf(prefs.getInt("front_tag", 4)));  // 仍使用front_tag键存储车辆标签ID
         
         // 获取保存的tag族，如果没有则默认为tag16h5
         String savedTagFamily = prefs.getString("tag_family", "tag16h5");
@@ -84,8 +80,7 @@ public class SettingsActivity extends AppCompatActivity {
             int corner2 = Integer.parseInt(corner2EditText.getText().toString().trim());
             int corner3 = Integer.parseInt(corner3EditText.getText().toString().trim());
             int corner4 = Integer.parseInt(corner4EditText.getText().toString().trim());
-            int frontTag = Integer.parseInt(frontTagEditText.getText().toString().trim());
-            int rearTag = Integer.parseInt(rearTagEditText.getText().toString().trim());
+            int vehicleTag = Integer.parseInt(vehicleTagEditText.getText().toString().trim());  // 单个车辆标签ID
 
             // 检查Tag ID是否有效（非负数）
             if (corner1 < 0) {
@@ -104,17 +99,13 @@ public class SettingsActivity extends AppCompatActivity {
                 showError("Corner 4 Tag ID must be a non-negative integer");
                 return;
             }
-            if (frontTag < 0) {
-                showError("Front Tag ID must be a non-negative integer");
-                return;
-            }
-            if (rearTag < 0) {
-                showError("Rear Tag ID must be a non-negative integer");
+            if (vehicleTag < 0) {
+                showError("Vehicle Tag ID must be a non-negative integer");
                 return;
             }
 
             // 检查是否有重复的Tag ID
-            if (hasDuplicateTags(corner1, corner2, corner3, corner4, frontTag, rearTag)) {
+            if (hasDuplicateTags(corner1, corner2, corner3, corner4, vehicleTag)) {
                 showError("Tag IDs should not be duplicated");
                 return;
             }
@@ -130,9 +121,7 @@ public class SettingsActivity extends AppCompatActivity {
             editor.putInt("base_tag_2", corner2);
             editor.putInt("base_tag_3", corner3);
             editor.putInt("base_tag_4", corner4);
-            editor.putInt("front_tag", frontTag);
-            editor.putInt("rear_tag", rearTag);
-            // 移除了服务器地址和端口的保存
+            editor.putInt("front_tag", vehicleTag);  // 保存车辆标签ID到front_tag键
             editor.putString("tag_family", selectedTagFamily);
             
             editor.apply();
