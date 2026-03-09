@@ -24,6 +24,7 @@ public class NetworkSender {
     private double lastX = Double.NaN;
     private double lastY = Double.NaN;
     private double lastAngle = Double.NaN;
+    private long lastTimestamp = -1; // 新增时间戳比较变量
     
     // 添加发送频率控制
     private long lastSendTime = 0;
@@ -51,21 +52,27 @@ public class NetworkSender {
     }
 
     public void sendLocationData(double x, double y, double angle) {
+        // 旧方法，保留向后兼容性
+        sendLocationData(x, y, angle, System.currentTimeMillis());
+    }
+
+    public void sendLocationData(double x, double y, double angle, long timestamp) {
         // 检查数据是否变化，如果没有变化则不发送
-        if (Double.isNaN(lastX) || lastX != x || lastY != y || lastAngle != angle) {
+        if (Double.isNaN(lastX) || lastX != x || lastY != y || lastAngle != angle || lastTimestamp != timestamp) {
             // 检查是否达到了最小发送间隔
             long currentTime = System.currentTimeMillis();
             if (currentTime - lastSendTime >= MIN_SEND_INTERVAL) {
-                performSend(x, y, angle);
+                performSend(x, y, angle, timestamp);
             }
         }
     }
 
-    private void performSend(double x, double y, double angle) {
+    private void performSend(double x, double y, double angle, long timestamp) {
         // 更新上次发送的数据
         lastX = x;
         lastY = y;
         lastAngle = angle;
+        lastTimestamp = timestamp;
         lastSendTime = System.currentTimeMillis();
         
         // 从SharedPreferences获取最新的服务器配置
@@ -100,8 +107,8 @@ public class NetworkSender {
         final int finalServerPort = tempServerPort;
         final String finalServerAddress = tempServerAddress;
 
-        // 创建纯文本数据格式：x,y,angle
-        String payload = String.format("%.5f,%.5f,%.5f", x, y, angle);
+        // 创建带时间戳的数据格式：x,y,angle,timestamp
+        String payload = String.format("%.5f,%.5f,%.5f,%d", x, y, angle, timestamp);
         
         // 在单独的线程中发送UDP数据
         udpExecutor.execute(() -> {

@@ -96,27 +96,27 @@ public class AprilTagAnalyzer implements ImageAnalysis.Analyzer {
             AprilTagDetector.DetectionResult result = aprilTagDetector.processImage(image);
             long detectionEndTime = System.currentTimeMillis();
             long detectionDuration = detectionEndTime - detectionStartTime;
-            
+
             if (result != null) {
                 // 仅输出最终检测结果
                 Log.d(TAG, String.format("检测到标签 - X: %.5f, Y: %.5f, Angle: %.5f°", result.x, result.y, result.angle));
-                
+
                 // 在后台线程发送位置数据，避免阻塞图像分析
                 networkExecutor.execute(() -> {
-                    networkSender.sendLocationData(result.x, result.y, result.angle);
+                    networkSender.sendLocationData(result.x, result.y, result.angle, result.timestamp);
                 });
-                
+
                 // 通知监听器检测结果
                 if (onDetectionResultListener != null) {
                     onDetectionResultListener.onDetectionResult(result);
                 }
-                
+
             } else {
                 // 仅在长时间未检测到标签时输出一次日志
                 if (detectionDuration > 100) {
                     Log.d(TAG, "未检测到标签");
                 }
-                
+
                 // 即使没有检测到结果，也要通知监听器
                 if (onDetectionResultListener != null) {
                     onDetectionResultListener.onDetectionResult(null);

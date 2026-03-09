@@ -121,6 +121,9 @@ public class AprilTagDetector {
     @ExperimentalGetImage
     public DetectionResult processImage(ImageProxy image) {
         synchronized(detectorLock) {
+            // 记录处理开始时间
+            long timestamp = System.currentTimeMillis();
+            
             // 获取图像字节数组
             byte[] nv21Bytes = getYUVByteArray(image);
             if (nv21Bytes == null) {
@@ -197,7 +200,7 @@ public class AprilTagDetector {
 
                 // 确保坐标在0-1范围内
                 if (normalizedX >= 0 && normalizedX <= 1 && normalizedY >= 0 && normalizedY <= 1) {
-                    DetectionResult detectionResult = new DetectionResult(normalizedX, normalizedY, angle, vehicleDetection.id);
+                    DetectionResult detectionResult = new DetectionResult(normalizedX, normalizedY, angle, vehicleDetection.id, timestamp);
                     Log.d(TAG, "Successfully detected: " + detectionResult.toString());
                     return detectionResult;
                 }
@@ -616,18 +619,20 @@ public class AprilTagDetector {
         public double y;      // 归一化y坐标 (0-1)
         public double angle;  // 方向角度 (0-360度)
         public int tagId;     // 标签ID
+        public long timestamp; // 时间戳
 
-        public DetectionResult(double x, double y, double angle, int tagId) {
+        public DetectionResult(double x, double y, double angle, int tagId, long timestamp) {
             this.x = x;
             this.y = y;
             this.angle = angle;
             this.tagId = tagId;
+            this.timestamp = timestamp;
         }
 
         @Override
         public String toString() {
-            return String.format("DetectionResult{x=%.5f, y=%.5f, angle=%.5f, tagId=%d}", 
-                                x, y, angle, tagId);
+            return String.format("DetectionResult{x=%.5f, y=%.5f, angle=%.5f, tagId=%d, timestamp=%d}", 
+                                x, y, angle, tagId, timestamp);
         }
     }
 }

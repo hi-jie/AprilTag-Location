@@ -5,7 +5,7 @@ from collections import deque
 def udp_receiver(host='0.0.0.0', port=8080):
     """
     UDP接收器，用于接收来自Android端的AprilTag位置数据
-    数据格式: x,y,angle (例如: 0.66379,0.69310,180.80583)
+    数据格式: x,y,angle,timestamp (例如: 0.66379,0.69310,180.80583,1234567890)
     """
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     sock.settimeout(2.0)
@@ -31,13 +31,19 @@ def udp_receiver(host='0.0.0.0', port=8080):
                 # 记录时间用于计算帧率
                 frame_times.append(current_time)
                 
-                # 解析数据 (格式: x,y,angle)
+                # 解析数据 (格式: x,y,angle,timestamp)
                 decoded_data = data.decode('utf-8').strip()
                 values = decoded_data.split(',')
                 
-                if len(values) == 3:
+                if len(values) == 4:
+                    x, y, angle, timestamp = map(float, values)
+                    # 计算时间戳与当前时间的差值
+                    time_diff = current_time * 1000 - timestamp  # 转换为毫秒
+                    print(f"[{addr[0]}:{addr[1]}] X:{x:.5f}, Y:{y:.5f}, Angle:{angle:.5f}°, Timestamp:{int(timestamp)}, Delay:{time_diff:.2f}ms")
+                elif len(values) == 3:
+                    # 兼容旧格式（无时间戳的数据）
                     x, y, angle = map(float, values)
-                    print(f"[{addr[0]}:{addr[1]}] X:{x:.5f}, Y:{y:.5f}, Angle:{angle:.5f}°")
+                    print(f"[{addr[0]}:{addr[1]}] X:{x:.5f}, Y:{y:.5f}, Angle:{angle:.5f}° (旧格式，无时间戳)")
                 else:
                     print(f"警告: 接收到格式错误的数据: {decoded_data}")
                 
