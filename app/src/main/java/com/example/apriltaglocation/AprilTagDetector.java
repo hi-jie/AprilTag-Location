@@ -190,23 +190,17 @@ public class AprilTagDetector {
                     }
                 }
 
-                // 直接使用车辆标签的中心点作为小车位置
-                double centerX = vehicleDetection.c[0];
-                double centerY = vehicleDetection.c[1];
-
-                // 使用透视变换计算归一化坐标
-                double[] normalizedCenterCoords = calculateNormalizedCoordinates(centerX, centerY);
-                double normalizedX = normalizedCenterCoords[0];
-                double normalizedY = normalizedCenterCoords[1];
-
-                // 计算方向角度 - 由于只有一个标签，我们不能计算方向，所以返回-1或其他默认值
-                double angle = calculateAngleFromCorners(vehicleDetection);  // 计算标签本身的角度
+                // 使用新的方法计算归一化坐标和方向（基于单应矩阵的算法）
+                double[] result = calculateNormalizedPositionAndDirection(vehicleDetection);
+                double normalizedX = result[0];
+                double normalizedY = result[1];
+                double angle = result[2];
 
                 // 确保坐标在0-1范围内
                 if (normalizedX >= 0 && normalizedX <= 1 && normalizedY >= 0 && normalizedY <= 1) {
-                    DetectionResult result = new DetectionResult(normalizedX, normalizedY, angle, vehicleDetection.id);
-                    Log.d(TAG, "Successfully detected: " + result.toString());
-                    return result;
+                    DetectionResult detectionResult = new DetectionResult(normalizedX, normalizedY, angle, vehicleDetection.id);
+                    Log.d(TAG, "Successfully detected: " + detectionResult.toString());
+                    return detectionResult;
                 }
             }
 
@@ -301,6 +295,180 @@ public class AprilTagDetector {
         resultY = Math.max(0.0, Math.min(1.0, resultY));
         
         return new double[]{resultX, resultY};
+    }
+
+    /**
+     * 利用单应矩阵计算小车的归一化坐标和方向
+     * 传入五个点的坐标：四个基准点和一个小车点
+     */
+    private double[] calculateNormalizedPositionAndDirection(ApriltagDetection vehicleDetection) {
+        // 提取四个基准点坐标
+        double[] baseX = {cornerPositions[0][0], cornerPositions[1][0], cornerPositions[2][0], cornerPositions[3][0]};
+        double[] baseY = {cornerPositions[0][1], cornerPositions[1][1], cornerPositions[2][1], cornerPositions[3][1]};
+        
+        // 定义在世界坐标系中的四个基准点（单位正方形）
+        double[] worldX = {0.0, 1.0, 0.0, 1.0};  // 左下、右下、左上、右上
+        double[] worldY = {1.0, 1.0, 0.0, 0.0};
+        
+        // 计算从图像坐标系到世界坐标系的单应矩阵H
+        double[] H = computeHomography(baseX, baseY, worldX, worldY);
+        
+        if (H == null) {
+            Log.e(TAG, "Failed to compute homography matrix");
+            return new double[]{0.5, 0.5, 0.0}; // 返回默认值
+        }
+        
+        // 将小车在图像中的坐标转换到世界坐标系中
+        double vehicleX = vehicleDetection.c[0];
+        double vehicleY = vehicleDetection.c[1];
+        double[] worldCoord = applyHomography(H, vehicleX, vehicleY);
+        
+        // 计算小车的方向
+        // 使用AprilTag的角点来确定方向
+        double direction = calculateDirectionUsingHomography(vehicleDetection, H);
+        
+        // 确保坐标在合理范围内
+        worldCoord[0] = Math.max(0.0, Math.min(1.0, worldCoord[0]));
+        worldCoord[1] = Math.max(0.0, Math.min(1.0, worldCoord[1]));
+        
+        return new double[]{worldCoord[0], worldCoord[1], direction};
+    }
+
+    /**
+     * 计算单应矩阵 H，使得 (u,v,1) = H * (x,y,1)
+     * 其中 (x,y) 是世界坐标系中的点，(u,v) 是图像坐标系中的点
+     */
+    private double[] computeHomography(double[] srcX, double[] srcY, double[] dstX, double[] dstY) {
+        // 使用DLT算法计算单应矩阵
+        double[][] A = new double[8][8];
+        double[] B = new double[8];
+        
+        for (int i = 0; i < 4; i++) {
+            // x' = (h00*x + h01*y + h02) / (h20*x + h21*y + h22)
+            // y' = (h10*x + h11*y + h12) / (h20*x + h21*y + h22)
+            //
+            // x'*(h20*x + h21*y + h22) = h00*x + h01*y + h02
+            // y'*(h20*x + h21*y + h22) = h10*x + h11*y + h12
+            //
+            // h00*x + h01*y + h02 - x'*x*h20 - x'*y*h21 - x'*h22 = 0
+            // h10*x + h11*y + h12 - y'*x*h20 - y'*y*h21 - y'*h22 = 0
+            
+            double x = srcX[i];
+            double y = srcY[i];
+            double xp = dstX[i];
+            double yp = dstY[i];
+            
+            // x'方程: h00*x + h01*y + h02 - x'*x*h20 - x'*y*h21 - x'*h22 = 0
+            A[i*2][0] = x;
+            A[i*2][1] = y;
+            A[i*2][2] = 1.0;
+            A[i*2][3] = 0.0;
+            A[i*2][4] = 0.0;
+            A[i*2][5] = 0.0;
+            A[i*2][6] = -xp * x;
+            A[i*2][7] = -xp * y;
+            B[i*2] = xp;
+            
+            // y'方程: h10*x + h11*y + h12 - y'*x*h20 - y'*y*h21 - y'*h22 = 0
+            A[i*2+1][0] = 0.0;
+            A[i*2+1][1] = 0.0;
+            A[i*2+1][2] = 0.0;
+            A[i*2+1][3] = x;
+            A[i*2+1][4] = y;
+            A[i*2+1][5] = 1.0;
+            A[i*2+1][6] = -yp * x;
+            A[i*2+1][7] = -yp * y;
+            B[i*2+1] = yp;
+        }
+        
+        double[] h = solveLinearSystem(A, B);
+        // h[0..7] 包含了单应矩阵的前8个元素，最后一个元素设为1
+        // h00, h01, h02, h10, h11, h12, h20, h21 (h22 = 1)
+        // 为了标准化，我们将整个矩阵除以h22的实际值
+        double[][] H_matrix = new double[3][3];
+        H_matrix[0][0] = h[0];
+        H_matrix[0][1] = h[1];
+        H_matrix[0][2] = h[2];
+        H_matrix[1][0] = h[3];
+        H_matrix[1][1] = h[4];
+        H_matrix[1][2] = h[5];
+        H_matrix[2][0] = h[6];
+        H_matrix[2][1] = h[7];
+        H_matrix[2][2] = 1.0;
+        
+        // 将矩阵展开为一维数组返回
+        double[] result = new double[9];
+        int idx = 0;
+        for (int i = 0; i < 3; i++) {
+            for (int j = 0; j < 3; j++) {
+                result[idx++] = H_matrix[i][j];
+            }
+        }
+        return result;
+    }
+
+    /**
+     * 应用单应矩阵变换
+     */
+    private double[] applyHomography(double[] H, double x, double y) {
+        // (x', y', w) = H * (x, y, 1)
+        double x_prime = H[0]*x + H[1]*y + H[2];
+        double y_prime = H[3]*x + H[4]*y + H[5];
+        double w = H[6]*x + H[7]*y + H[8];
+        
+        // 齐次坐标的去齐次化
+        if (Math.abs(w) < 1e-10) {
+            Log.e(TAG, "Homography transformation resulted in near-zero w: " + w);
+            return new double[]{x, y}; // 返回原始坐标作为默认值
+        }
+        return new double[]{x_prime/w, y_prime/w};
+    }
+
+    /**
+     * 使用单应矩阵计算小车方向
+     * 方向为：透视变换后，小车上tag码在正立时的上方向，与角1到角2方向所成的角
+     */
+    private double calculateDirectionUsingHomography(ApriltagDetection detection, double[] H) {
+        // 获取AprilTag的四个角点在图像中的坐标
+        double[] cornersX = new double[4];
+        double[] cornersY = new double[4];
+        for (int i = 0; i < 4; i++) {
+            cornersX[i] = detection.p[i * 2];     // x坐标
+            cornersY[i] = detection.p[i * 2 + 1]; // y坐标
+        }
+        
+        // 将这四个角点通过单应矩阵变换到世界坐标系
+        double[] worldCornersX = new double[4];
+        double[] worldCornersY = new double[4];
+        for (int i = 0; i < 4; i++) {
+            double[] worldPt = applyHomography(H, cornersX[i], cornersY[i]);
+            worldCornersX[i] = worldPt[0];
+            worldCornersY[i] = worldPt[1];
+        }
+        
+        // 假设角点顺序为：左下、右下、右上、左上 (0, 1, 2, 3)
+        // 计算在世界坐标系中标签的上方向（即从中心点到顶边中点的方向）
+        double centerX = (worldCornersX[0] + worldCornersX[1] + worldCornersX[2] + worldCornersX[3]) / 4.0;
+        double centerY = (worldCornersY[0] + worldCornersY[1] + worldCornersY[2] + worldCornersY[3]) / 4.0;
+        double topMidX = (worldCornersX[2] + worldCornersX[3]) / 2.0;
+        double topMidY = (worldCornersY[2] + worldCornersY[3]) / 2.0;
+        double upDirX = topMidX - centerX;
+        double upDirY = topMidY - centerY;
+        double upAngle = Math.toDegrees(Math.atan2(upDirY, upDirX));
+        if (upAngle < 0) upAngle += 360;
+        
+        // 计算角1到角2的方向（角1是左下角，角2是右下角）
+        double edgeDirX = worldCornersX[1] - worldCornersX[0];
+        double edgeDirY = worldCornersY[1] - worldCornersY[0];
+        double edgeAngle = Math.toDegrees(Math.atan2(edgeDirY, edgeDirX));
+        if (edgeAngle < 0) edgeAngle += 360;
+        
+        // 计算归一化方向：上方向与角1到角2方向之间的夹角
+        double normalizedDirection = upAngle - edgeAngle;
+        if (normalizedDirection < 0) normalizedDirection += 360;
+        if (normalizedDirection >= 360) normalizedDirection -= 360;
+        
+        return normalizedDirection;
     }
 
     /**
