@@ -44,7 +44,6 @@ app/
         │   │           ├── SettingsActivity.java   # 设置Activity，配置AprilTag参数和网络设置
         │   │           ├── AprilTagAnalyzer.java   # AprilTag分析器，处理图像分析和坐标计算
         │   │           ├── AprilTagDetector.java   # AprilTag检测器，核心检测逻辑实现
-        │   │           ├── AprilTagOverlay.java    # AprilTag覆盖层，绘制检测结果显示
         │   │           ├── NetworkSender.java      # 网络发送器，UDP数据传输实现
         │   │           └── MyApplication.java      # Application类，应用入口
         │   └── edu/
@@ -116,7 +115,6 @@ apriltag/
 - [SettingsActivity.java](file:///d:/Files/zzj/Programs/android/apriltag-location/app/src/main/java/com/example/apriltaglocation/SettingsActivity.java): 设置Activity，用于配置AprilTag参数和网络设置
 - [AprilTagAnalyzer.java](file:///d:/Files/zzj/Programs/android/apriltag-location/app/src/main/java/com/example/apriltaglocation/AprilTagAnalyzer.java): AprilTag分析器，处理图像分析和坐标计算逻辑
 - [AprilTagDetector.java](file:///d:/Files/zzj/Programs/android/apriltag-location/app/src/main/java/com/example/apriltaglocation/AprilTagDetector.java): AprilTag检测器，实现核心检测算法和透视变换
-- [AprilTagOverlay.java](file:///d:/Files/zzj/Programs/android/apriltag-location/app/src/main/java/com/example/apriltaglocation/AprilTagOverlay.java): AprilTag覆盖层，在预览界面上绘制检测结果
 - [NetworkSender.java](file:///d:/Files/zzj/Programs/android/apriltag-location/app/src/main/java/com/example/apriltaglocation/NetworkSender.java): 网络发送器，实现UDP数据传输功能
 - [MyApplication.java](file:///d:/Files/zzj/Programs/android/apriltag-location/app/src/main/java/com/example/apriltaglocation/MyApplication.java): Application类，应用生命周期管理
 - [ApriltagDetection.java](file:///d:/Files/zzj/Programs/android/apriltag-location/app/src/main/java/edu/umich/eecs/april/apriltag/ApriltagDetection.java): AprilTag检测接口定义
@@ -182,9 +180,9 @@ apriltag/
 根据AprilTag检测与图像处理性能优化规范，本项目采用以下优化策略：
 
 1. 图像采集与处理优化：优先使用YUV格式的Y分量（灰度图）进行处理
-2. 图像采集与显示一致性：统一使用3:4的宽高比
+2. 图像采集与显示一致性：统一使用9:16的宽高比
 3. 运行时性能可视化：提供实时FPS显示
-4. 移动设备性能优化：建议在移动设备上达到10-20帧的处理速度
+4. 移动设备性能优化：建议在移动设备上达到20帧以上的处理速度
 
 ## 安全规范
 
