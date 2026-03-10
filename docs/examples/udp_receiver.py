@@ -40,10 +40,6 @@ def udp_receiver(host='0.0.0.0', port=8080):
                     # 计算时间戳与当前时间的差值
                     time_diff = current_time * 1000 - timestamp  # 转换为毫秒
                     print(f"[{addr[0]}:{addr[1]}] X:{x:.5f}, Y:{y:.5f}, Angle:{angle:.5f}°, Timestamp:{int(timestamp)}, Delay:{time_diff:.2f}ms")
-                elif len(values) == 3:
-                    # 兼容旧格式（无时间戳的数据）
-                    x, y, angle = map(float, values)
-                    print(f"[{addr[0]}:{addr[1]}] X:{x:.5f}, Y:{y:.5f}, Angle:{angle:.5f}° (旧格式，无时间戳)")
                 else:
                     print(f"警告: 接收到格式错误的数据: {decoded_data}")
                 

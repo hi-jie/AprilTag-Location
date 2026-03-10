@@ -77,7 +77,7 @@ public class AprilTagDetector {
                 ApriltagNative.apriltag_init(tagFamily, 0, 1.5, 0.0, 4); // 增加降采样因子和线程数
             } else {
                 // 对于其他tag族，使用相对宽松的参数
-                ApriltagNative.apriltag_init(tagFamily, 2, 1.5, 0.0, 4); // 增加降采样因子和线程数
+                ApriltagNative.apriltag_init(tagFamily, 4, 1.5, 0.0, 4); // 增加降采样因子和线程数
             }
         } catch (UnsatisfiedLinkError e) {
             Log.e(TAG, "Failed to initialize AprilTag native library: " + e.getMessage());

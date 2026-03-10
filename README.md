@@ -7,17 +7,27 @@
 本项目使用通义灵码辅助开发。
 
 ### 主要功能
+
 - 实时识别AprilTag标签
+
 - 计算目标在场地中二维归一化坐标(X,Y)
+
 - 计算目标的角度方向
+
 - 实时帧率监控
+
 - UDP数据传输
+
 - 可配置的标签ID和类型
 
 ### 技术架构
+
 - Android端使用CameraX API捕获图像
+
 - 集成Apriltag库进行标签检测
+
 - 使用UDP协议进行数据传输
+
 - 支持多种AprilTag族类（tag16h5, tag25h9等）
 
 ## 使用教程
@@ -25,9 +35,20 @@
 ### 1. App使用
 
    - 打开应用后点击"设置"按钮
+
    - 配置AprilTag家族类型（如tag16h5）
+
    - 设置四个角点标签ID（用于建立坐标系）
+   
    - 设置车辆标签ID（用于定位目标位置和角度）
+
+主界面：
+
+![主页面](docs/images/detecting.jpg)
+
+设置界面：
+
+![设置页面](docs/images/settings.jpg)
 
 ### 2. 信息接收
 
@@ -41,86 +62,74 @@
 
     角度为顺时针为正方向，AprilTag 码正立时的上方向与 **点1** 指向 **点2** 方向所形成的角。
 
-3. 信息接收：
+3. 信息接收代码：
 
-项目自带了一个Python UDP接收程序，可以接收Android端发送的位置和角度数据：
+    项目自带了一个 Python UDP 示例接收程序，可以接收Android端发送的位置和角度数据：
 
-#### 直接运行接收程序
-```bash
-python udp_receiver.py
+    > [docs/examples/udp_receiver.py](docs/examples/udp_receiver.py)
+
+### 误差分析
+
+项目自带了一个 Python 示例程序，用于计算位置和角度的误差：
+
+> [docs/examples/analyze.py](docs/examples/analyze.py)
+
+## 项目结构
+
+### 项目整体结构
+
+```
+apriltag-location/
+├── app/                          # Android应用模块
+├── apriltag/                     # AprilTag原生库模块
+├── docs/                         # 文档目录
+├── gradle/                       # Gradle包装器目录
+├── build.gradle.kts              # 顶级构建配置文件
+├── gradle.properties             # Gradle全局属性配置
+├── gradlew                       # Linux/Mac下的Gradle包装器脚本
+├── gradlew.bat                   # Windows下的Gradle包装器脚本
+├── local.properties              # 本地属性配置（NDK路径等）
+├── settings.gradle.kts           # 项目设置文件
+├── README.md                     # 项目说明文档
+├── STRUCTURE.md                  # 项目结构文档
+├── udp_receiver.py               # Python UDP接收程序示例
+└── .gitignore                    # Git忽略文件配置
 ```
 
-#### 自定义Python接收程序示例
+### app模块结构
 
-下面是一个简单的Python UDP接收程序示例，你可以根据自己的需求进行修改：
-
-```python
-import socket
-import time
-from collections import deque
-
-def udp_receiver(host='0.0.0.0', port=8080):
-    """
-    接收Android端通过UDP发送的AprilTag位置和角度数据
-    
-    数据格式: x,y,angle
-    例如: 0.12345,0.67890,90.50000
-    """
-    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    sock.settimeout(2.0)  # 设置超时
-    try:
-        sock.bind((host, port))
-        print(f"UDP接收器已启动，监听 {host}:{port}")
-    except Exception as e:
-        print(f"错误: {e}")
-        return
-
-    # 用于计算帧率
-    frame_times = deque(maxlen=30)
-    last_print_time = time.time()
-
-    print("等待接收数据... (按 Ctrl+C 退出)")
-    try:
-        while True:
-            try:
-                # 接收数据
-                data, addr = sock.recvfrom(1024)
-                current_time = time.time()
-                
-                # 记录时间用于计算帧率
-                frame_times.append(current_time)
-                
-                # 解析数据 (格式: x,y,angle)
-                decoded_data = data.decode('utf-8').strip()
-                values = decoded_data.split(',')
-                
-                if len(values) == 4:
-                    x, y, angle, timestamp = map(float, values)
-                    print(f"[{addr[0]}:{addr[1]}] X:{x:.5f}, Y:{y:.5f}, Angle:{angle:.5f}°")
-                else:
-                    print(f"警告: 接收到格式错误的数据: {decoded_data}")
-                
-                # 每秒计算并输出一次帧率
-                if current_time - last_print_time >= 1.0:
-                    if len(frame_times) > 1:
-                        time_window = frame_times[-1] - frame_times[0]
-                        if time_window > 0:
-                            fps = (len(frame_times) - 1) / time_window
-                            print(f"接收帧率: {fps:.2f} FPS")
-                    
-                    last_print_time = current_time
-            
-            except socket.timeout:
-                continue  # 继续等待数据
-                
-    except KeyboardInterrupt:
-        print("\n接收器已停止")
-    finally:
-        sock.close()
-
-if __name__ == "__main__":
-    # 运行接收器
-    udp_receiver(host='0.0.0.0', port=8080)
+```
+app/
+├── build/                        # 构建输出目录
+├── build.gradle.kts              # app模块构建配置
+├── libs/                         # 第三方库存放目录
+└── src/
+    └── main/
+        ├── AndroidManifest.xml   # Android应用配置文件
+        ├── java/                 # Java/Kotlin源代码
+        │   ├── com/
+        │   │   └── example/
+        │   │       └── apriltaglocation/    # 主要应用功能包
+        │   │           ├── MainActivity.java       # 主Activity，负责相机控制和UI交互
+        │   │           ├── SettingsActivity.java   # 设置Activity，配置AprilTag参数和网络设置
+        │   │           ├── AprilTagAnalyzer.java   # AprilTag分析器，处理图像分析和坐标计算
+        │   │           ├── AprilTagDetector.java   # AprilTag检测器，核心检测逻辑实现
+        │   │           ├── NetworkSender.java      # 网络发送器，UDP数据传输实现
+        │   │           └── MyApplication.java      # Application类，应用入口
+        │   └── edu/
+        │       └── umich/
+        │           └── eecs/
+        │               └── april/
+        │                   └── apriltag/
+        │                       ├── ApriltagDetection.java      # AprilTag检测接口
+        │                       └── ApriltagNative.java         # AprilTag原生库封装
+        └── res/                  # 资源文件
+            ├── layout/           # 布局XML文件
+            │   ├── activity_main.xml          # 主界面布局
+            │   └── activity_settings.xml      # 设置界面布局
+            ├── mipmap-anydpi-v26/ # 自适应图标
+            ├── values/           # 字符串、颜色、样式等资源
+            └── xml/              # 其他XML资源文件
 ```
 
 ## 其他
