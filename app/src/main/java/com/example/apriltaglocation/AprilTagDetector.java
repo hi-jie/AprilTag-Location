@@ -459,26 +459,15 @@ public class AprilTagDetector {
             worldCornersY[i] = worldPt[1];
         }
         
-        // 按照AprilTag规范重新映射角点顺序：
-        // worldCornersX/Y[0] - 图像中右下角 -> 实际右下角
-        // worldCornersX/Y[1] - 图像中右上角 -> 实际右上角
-        // worldCornersX/Y[2] - 图像中左上角 -> 实际左上角
-        // worldCornersX/Y[3] - 图像中左下角 -> 实际左下角
-        
-        // 计算在世界坐标系中标签的上方向（即从中心点到顶边中点的方向）
         double centerX = (worldCornersX[0] + worldCornersX[1] + worldCornersX[2] + worldCornersX[3]) / 4.0;
         double centerY = (worldCornersY[0] + worldCornersY[1] + worldCornersY[2] + worldCornersY[3]) / 4.0;
         
-        // 上方向是从中心点到顶边中点（左上和右上角的中点）
-        double topMidX = (worldCornersX[2] + worldCornersX[1]) / 2.0;  // 左上和右上的中点
-        double topMidY = (worldCornersY[2] + worldCornersY[1]) / 2.0;
-        double upDirX = topMidX - centerX;
-        double upDirY = topMidY - centerY;
+        double rightMidX = (worldCornersX[1] + worldCornersX[2]) / 2.0;  
+        double rightMidY = (worldCornersY[1] + worldCornersY[2]) / 2.0;
+        double rightDirX = rightMidX - centerX;
+        double rightDirY = rightMidY - centerY;
         
-        // 计算与正上方的夹角（正方向为顺时针方向）
-        // 在Y轴向下为正的坐标系中，正上方是负Y方向
-        // atan2(-upDirX, upDirY)计算的是从正Y轴（上方）顺时针旋转到目标方向的角度
-        double angleRad = Math.atan2(-upDirX, upDirY); // 顺时针为正
+        double angleRad = Math.atan2(-rightDirY, rightDirX); 
         double angleDeg = Math.toDegrees(angleRad);
         
         // 将角度转换到[0, 360)范围内
