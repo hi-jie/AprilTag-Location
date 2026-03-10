@@ -211,95 +211,6 @@ public class AprilTagDetector {
     }
 
     /**
-     * 使用透视变换计算归一化坐标
-     * 将任意四边形场地变换为标准矩形坐标系
-     * 将图像上的任意四边形变换为单位正方形 [0,1]x[0,1]
-     */
-    private double[] calculateNormalizedCoordinates(double targetX, double targetY) {
-        // 获取四个基准标签的坐标，对应单位正方形的四个角点
-        // 按照约定顺序：左下、右下、左上、右上 (0, 1, 2, 3)
-        double[] srcX = {cornerPositions[0][0], cornerPositions[1][0], cornerPositions[2][0], cornerPositions[3][0]};
-        double[] srcY = {cornerPositions[0][1], cornerPositions[1][1], cornerPositions[2][1], cornerPositions[3][1]};
-        
-        // 目标单位正方形的四个角点：左下(0,1), 右下(1,1), 左上(0,0), 右上(1,0)
-        double[] dstX = {0.0, 1.0, 0.0, 1.0};
-        double[] dstY = {1.0, 1.0, 0.0, 0.0};
-        
-        // 构建透视变换矩阵系数的线性方程组
-        // 透视变换公式:
-        // x' = (a*x + b*y + c) / (g*x + h*y + 1)
-        // y' = (d*x + e*y + f) / (g*x + h*y + 1)
-        //
-        // 变换为线性形式:
-        // x'*(g*x + h*y + 1) = a*x + b*y + c
-        // y'*(g*x + h*y + 1) = d*x + e*y + f
-        //
-        // 整理得:
-        // a*x + b*y + c - x'*x*g - x'*y*h = x'
-        // d*x + e*y + f - y'*x*g - y'*y*h = y'
-        
-        double[][] A = new double[8][8];
-        double[] B = new double[8];
-        
-        // 对四个角点建立方程
-        for (int i = 0; i < 4; i++) {
-            // x'方程
-            A[i*2][0] = srcX[i];       // a系数
-            A[i*2][1] = srcY[i];       // b系数
-            A[i*2][2] = 1.0;           // c系数
-            A[i*2][3] = 0.0;           // d系数
-            A[i*2][4] = 0.0;           // e系数
-            A[i*2][5] = 0.0;           // f系数
-            A[i*2][6] = -dstX[i] * srcX[i]; // g系数
-            A[i*2][7] = -dstX[i] * srcY[i]; // h系数
-            B[i*2] = dstX[i];          // 目标值
-            
-            // y'方程
-            A[i*2+1][0] = 0.0;         // a系数
-            A[i*2+1][1] = 0.0;         // b系数
-            A[i*2+1][2] = 0.0;         // c系数
-            A[i*2+1][3] = srcX[i];     // d系数
-            A[i*2+1][4] = srcY[i];     // e系数
-            A[i*2+1][5] = 1.0;         // f系数
-            A[i*2+1][6] = -dstY[i] * srcX[i]; // g系数
-            A[i*2+1][7] = -dstY[i] * srcY[i]; // h系数
-            B[i*2+1] = dstY[i];        // 目标值
-        }
-        
-        // 求解线性方程组得到变换矩阵系数
-        double[] coeffs = solveLinearSystem(A, B);
-        
-        // 使用求得的系数计算目标点的变换后坐标
-        double a = coeffs[0];
-        double b = coeffs[1];
-        double c = coeffs[2];
-        double d = coeffs[3];
-        double e = coeffs[4];
-        double f = coeffs[5];
-        double g = coeffs[6];
-        double h = coeffs[7];
-        
-        // 应用透视变换
-        double denominator = g * targetX + h * targetY + 1.0;
-        
-        // 添加安全性检查，防止分母接近0
-        if (Math.abs(denominator) < 1e-6) {
-            Log.e(TAG, "Perspective transformation denominator too close to zero: " + denominator);
-            // 返回无效坐标
-            return new double[]{0.5, 0.5}; // 返回中心点作为默认值
-        }
-        
-        double resultX = (a * targetX + b * targetY + c) / denominator;
-        double resultY = (d * targetX + e * targetY + f) / denominator;
-        
-        // 确保结果在合理范围内
-        resultX = Math.max(0.0, Math.min(1.0, resultX));
-        resultY = Math.max(0.0, Math.min(1.0, resultY));
-        
-        return new double[]{resultX, resultY};
-    }
-
-    /**
      * 利用单应矩阵计算小车的归一化坐标和方向
      * 传入五个点的坐标：四个基准点和一个小车点
      */
@@ -467,7 +378,7 @@ public class AprilTagDetector {
         double rightDirX = rightMidX - centerX;
         double rightDirY = rightMidY - centerY;
         
-        double angleRad = Math.atan2(-rightDirY, rightDirX); 
+        double angleRad = Math.atan2(rightDirY, rightDirX); 
         double angleDeg = Math.toDegrees(angleRad);
         
         // 将角度转换到[0, 360)范围内
