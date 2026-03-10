@@ -8,7 +8,7 @@
 
 ### 主要功能
 - 实时识别AprilTag标签
-- 计算目标的二维位置(X,Y坐标)
+- 计算目标在场地中二维归一化坐标(X,Y)
 - 计算目标的角度方向
 - 实时帧率监控
 - UDP数据传输
@@ -27,13 +27,19 @@
    - 打开应用后点击"设置"按钮
    - 配置AprilTag家族类型（如tag16h5）
    - 设置四个角点标签ID（用于建立坐标系）
-   - 设置前后标签ID（用于定位目标位置和角度）
+   - 设置车辆标签ID（用于定位目标位置和角度）
 
 ### 2. 信息接收
 
 1. 确保Android设备与PC处于同一个局域网内
 
-2. 信息使用UDP协议进行传输，类型为纯文本，格式为 `x,y,angle`
+2. 信息使用UDP协议进行传输，类型为纯文本，格式为 `x,y,angle,timestamp`
+
+    其中 **x、y** 为归一化坐标，**angle** 为角度方向，**timestamp** 为时间戳。
+
+    坐标系为：**点1：(0,0)，点2：(1,0)，点3：(0,1)，点4：(1,1)。**
+
+    角度为顺时针为正方向，AprilTag 码正立时的上方向与 **点1** 指向 **点2** 方向所形成的角。
 
 3. 信息接收：
 
@@ -88,8 +94,8 @@ def udp_receiver(host='0.0.0.0', port=8080):
                 decoded_data = data.decode('utf-8').strip()
                 values = decoded_data.split(',')
                 
-                if len(values) == 3:
-                    x, y, angle = map(float, values)
+                if len(values) == 4:
+                    x, y, angle, timestamp = map(float, values)
                     print(f"[{addr[0]}:{addr[1]}] X:{x:.5f}, Y:{y:.5f}, Angle:{angle:.5f}°")
                 else:
                     print(f"警告: 接收到格式错误的数据: {decoded_data}")

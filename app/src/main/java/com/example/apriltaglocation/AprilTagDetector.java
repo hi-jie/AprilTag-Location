@@ -215,21 +215,14 @@ public class AprilTagDetector {
      * 传入五个点的坐标：四个基准点和一个小车点
      */
     private double[] calculateNormalizedPositionAndDirection(ApriltagDetection vehicleDetection) {
-        // 提取四个基准点坐标
-        // 根据baseTagIds的顺序（第0、1、2、3个tag码分别对应左上、右上、左下、右下）：
-        // baseTagIds[0] = 左上角 -> 对应世界坐标 (0, 0)
-        // baseTagIds[1] = 右上角 -> 对应世界坐标 (1, 0)  
-        // baseTagIds[2] = 左下角 -> 对应世界坐标 (0, 1)
-        // baseTagIds[3] = 右下角 -> 对应世界坐标 (1, 1)
+        
+        // 计算单应矩阵H
+
         double[] baseX = {cornerPositions[0][0], cornerPositions[1][0], cornerPositions[2][0], cornerPositions[3][0]};
         double[] baseY = {cornerPositions[0][1], cornerPositions[1][1], cornerPositions[2][1], cornerPositions[3][1]};
         
-        // 定义在世界坐标系中的四个基准点（以左上为(0,0)，右下为(1,1)，Y轴向下为正）
-        // 顺序：左上、右上、左下、右下 -> (0,0)、(1,0)、(0,1)、(1,1)
-        double[] worldX = {0.0, 1.0, 0.0, 1.0};  // 左上、右上、左下、右下
-        double[] worldY = {0.0, 0.0, 1.0, 1.0};  // 左上、右上、左下、右下
-        
-        // 计算从图像坐标系到世界坐标系的单应矩阵H
+        double[] worldX = {0.0, 1.0, 0.0, 1.0};
+        double[] worldY = {0.0, 0.0, 1.0, 1.0};
         double[] H = computeHomography(baseX, baseY, worldX, worldY);
         
         if (H == null) {
@@ -237,20 +230,52 @@ public class AprilTagDetector {
             return new double[]{0.5, 0.5, 0.0}; // 返回默认值
         }
         
-        // 将小车在图像中的坐标转换到世界坐标系中
-        double vehicleX = vehicleDetection.c[0];
-        double vehicleY = vehicleDetection.c[1];
-        double[] worldCoord = applyHomography(H, vehicleX, vehicleY);
+        // 将坐标转换到世界坐标系中
+
+        double[] worldCenter = applyHomography(H, vehicleDetection.c[0], vehicleDetection.c[1]);        
+        worldCenter[0] = Math.max(0.0, Math.min(1.0, worldCenter[0]));
+        worldCenter[1] = Math.max(0.0, Math.min(1.0, worldCenter[1]));
+
+        double[][] worldCorners = new double[4][2];
+        for (int i = 0; i < 4; i++) {
+            worldCorners[i] = applyHomography(H, vehicleDetection.p[i * 2], vehicleDetection.p[i * 2 + 1]);
+        }
+
+        // 矫正归一化导致的形变，确保四个角点形成一个近似正方形
+
+        double minX = Math.min(Math.min(worldCorners[0][0], worldCorners[1][0]), Math.min(worldCorners[2][0], worldCorners[3][0]));
+        double maxX = Math.max(Math.max(worldCorners[0][0], worldCorners[1][0]), Math.max(worldCorners[2][0], worldCorners[3][0]));
+        double minY = Math.min(Math.min(worldCorners[0][1], worldCorners[1][1]), Math.min(worldCorners[2][1], worldCorners[3][1]));
+        double maxY = Math.max(Math.max(worldCorners[0][1], worldCorners[1][1]), Math.max(worldCorners[2][1], worldCorners[3][1]));
+        double deltaX = maxX - minX;
+        double deltaY = maxY - minY;
         
-        // 计算小车的方向
-        // 使用AprilTag的角点来确定方向
-        double direction = calculateDirectionUsingHomography(vehicleDetection, H);
+        double targetSpan = Math.max(deltaX, deltaY);
+        double scaleX = targetSpan / deltaX;
+        double scaleY = targetSpan / deltaY;
         
-        // 确保坐标在合理范围内
-        worldCoord[0] = Math.max(0.0, Math.min(1.0, worldCoord[0]));
-        worldCoord[1] = Math.max(0.0, Math.min(1.0, worldCoord[1]));
+        double centerX = (minX + maxX) / 2.0;
+        double centerY = (minY + maxY) / 2.0;
+        for (int i = 0; i < 4; i++) {
+            worldCorners[i][0] = centerX + (worldCorners[i][0] - centerX) * scaleX;
+            worldCorners[i][1] = centerY + (worldCorners[i][1] - centerY) * scaleY;
+        }
+
+        // 计算角度
+
+        double rightMidX = (worldCorners[1][0] + worldCorners[2][0]) / 2.0;  
+        double rightMidY = (worldCorners[1][1] + worldCorners[2][1]) / 2.0;
+        double rightDirX = rightMidX - worldCenter[0];
+        double rightDirY = rightMidY - worldCenter[1];
         
-        return new double[]{worldCoord[0], worldCoord[1], direction};
+        double angleRad = Math.atan2(rightDirY, rightDirX); 
+        double angleDeg = Math.toDegrees(angleRad);
+        
+        if (angleDeg < 0) {
+            angleDeg += 360;
+        }
+        
+        return new double[]{worldCenter[0], worldCenter[1], angleDeg};
     }
 
     /**
@@ -341,52 +366,6 @@ public class AprilTagDetector {
             return new double[]{x, y}; // 返回原始坐标作为默认值
         }
         return new double[]{x_prime/w, y_prime/w};
-    }
-
-    /**
-     * 使用单应矩阵计算小车方向
-     * 方向为：透视变换后，小车上tag码在正立时的上方向，与正上方所形成的角，正方向为顺时针方向
-     */
-    private double calculateDirectionUsingHomography(ApriltagDetection detection, double[] H) {
-        // 获取AprilTag的四个角点在图像中的坐标
-        // 根据AprilTag规范，角点按逆时针顺序排列：
-        // p[0],p[1]: 右下角
-        // p[2],p[3]: 右上角
-        // p[4],p[5]: 左上角
-        // p[6],p[7]: 左下角
-        double[] cornersX = new double[4];
-        double[] cornersY = new double[4];
-        for (int i = 0; i < 4; i++) {
-            cornersX[i] = detection.p[i * 2];     // x坐标
-            cornersY[i] = detection.p[i * 2 + 1]; // y坐标
-        }
-        
-        // 将这四个角点通过单应矩阵变换到世界坐标系
-        double[] worldCornersX = new double[4];
-        double[] worldCornersY = new double[4];
-        for (int i = 0; i < 4; i++) {
-            double[] worldPt = applyHomography(H, cornersX[i], cornersY[i]);
-            worldCornersX[i] = worldPt[0];
-            worldCornersY[i] = worldPt[1];
-        }
-        
-        double centerX = (worldCornersX[0] + worldCornersX[1] + worldCornersX[2] + worldCornersX[3]) / 4.0;
-        double centerY = (worldCornersY[0] + worldCornersY[1] + worldCornersY[2] + worldCornersY[3]) / 4.0;
-        
-        double rightMidX = (worldCornersX[1] + worldCornersX[2]) / 2.0;  
-        double rightMidY = (worldCornersY[1] + worldCornersY[2]) / 2.0;
-        double rightDirX = rightMidX - centerX;
-        double rightDirY = rightMidY - centerY;
-        
-        double angleRad = Math.atan2(rightDirY, rightDirX); 
-        double angleDeg = Math.toDegrees(angleRad);
-        
-        // 将角度转换到[0, 360)范围内
-        if (angleDeg < 0) {
-            angleDeg += 360;
-        }
-        
-        return angleDeg;
     }
 
     /**
