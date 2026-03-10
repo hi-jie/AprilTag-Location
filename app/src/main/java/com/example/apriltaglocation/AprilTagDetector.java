@@ -305,12 +305,18 @@ public class AprilTagDetector {
      */
     private double[] calculateNormalizedPositionAndDirection(ApriltagDetection vehicleDetection) {
         // 提取四个基准点坐标
+        // 根据baseTagIds的顺序（第0、1、2、3个tag码分别对应左上、右上、左下、右下）：
+        // baseTagIds[0] = 左上角 -> 对应世界坐标 (0, 0)
+        // baseTagIds[1] = 右上角 -> 对应世界坐标 (1, 0)  
+        // baseTagIds[2] = 左下角 -> 对应世界坐标 (0, 1)
+        // baseTagIds[3] = 右下角 -> 对应世界坐标 (1, 1)
         double[] baseX = {cornerPositions[0][0], cornerPositions[1][0], cornerPositions[2][0], cornerPositions[3][0]};
         double[] baseY = {cornerPositions[0][1], cornerPositions[1][1], cornerPositions[2][1], cornerPositions[3][1]};
         
-        // 定义在世界坐标系中的四个基准点（单位正方形）
-        double[] worldX = {0.0, 1.0, 0.0, 1.0};  // 左下、右下、左上、右上
-        double[] worldY = {1.0, 1.0, 0.0, 0.0};
+        // 定义在世界坐标系中的四个基准点（以左上为(0,0)，右下为(1,1)，Y轴向下为正）
+        // 顺序：左上、右上、左下、右下 -> (0,0)、(1,0)、(0,1)、(1,1)
+        double[] worldX = {0.0, 1.0, 0.0, 1.0};  // 左上、右上、左下、右下
+        double[] worldY = {0.0, 0.0, 1.0, 1.0};  // 左上、右上、左下、右下
         
         // 计算从图像坐标系到世界坐标系的单应矩阵H
         double[] H = computeHomography(baseX, baseY, worldX, worldY);
@@ -428,10 +434,15 @@ public class AprilTagDetector {
 
     /**
      * 使用单应矩阵计算小车方向
-     * 方向为：透视变换后，小车上tag码在正立时的上方向，与角1到角2方向所成的角
+     * 方向为：透视变换后，小车上tag码在正立时的上方向，与正上方所形成的角，正方向为顺时针方向
      */
     private double calculateDirectionUsingHomography(ApriltagDetection detection, double[] H) {
         // 获取AprilTag的四个角点在图像中的坐标
+        // 根据AprilTag规范，角点按逆时针顺序排列：
+        // p[0],p[1]: 右下角
+        // p[2],p[3]: 右上角
+        // p[4],p[5]: 左上角
+        // p[6],p[7]: 左下角
         double[] cornersX = new double[4];
         double[] cornersY = new double[4];
         for (int i = 0; i < 4; i++) {
@@ -448,29 +459,34 @@ public class AprilTagDetector {
             worldCornersY[i] = worldPt[1];
         }
         
-        // 假设角点顺序为：左下、右下、右上、左上 (0, 1, 2, 3)
+        // 按照AprilTag规范重新映射角点顺序：
+        // worldCornersX/Y[0] - 图像中右下角 -> 实际右下角
+        // worldCornersX/Y[1] - 图像中右上角 -> 实际右上角
+        // worldCornersX/Y[2] - 图像中左上角 -> 实际左上角
+        // worldCornersX/Y[3] - 图像中左下角 -> 实际左下角
+        
         // 计算在世界坐标系中标签的上方向（即从中心点到顶边中点的方向）
         double centerX = (worldCornersX[0] + worldCornersX[1] + worldCornersX[2] + worldCornersX[3]) / 4.0;
         double centerY = (worldCornersY[0] + worldCornersY[1] + worldCornersY[2] + worldCornersY[3]) / 4.0;
-        double topMidX = (worldCornersX[2] + worldCornersX[3]) / 2.0;
-        double topMidY = (worldCornersY[2] + worldCornersY[3]) / 2.0;
+        
+        // 上方向是从中心点到顶边中点（左上和右上角的中点）
+        double topMidX = (worldCornersX[2] + worldCornersX[1]) / 2.0;  // 左上和右上的中点
+        double topMidY = (worldCornersY[2] + worldCornersY[1]) / 2.0;
         double upDirX = topMidX - centerX;
         double upDirY = topMidY - centerY;
-        double upAngle = Math.toDegrees(Math.atan2(upDirY, upDirX));
-        if (upAngle < 0) upAngle += 360;
         
-        // 计算角1到角2的方向（角1是左下角，角2是右下角）
-        double edgeDirX = worldCornersX[1] - worldCornersX[0];
-        double edgeDirY = worldCornersY[1] - worldCornersY[0];
-        double edgeAngle = Math.toDegrees(Math.atan2(edgeDirY, edgeDirX));
-        if (edgeAngle < 0) edgeAngle += 360;
+        // 计算与正上方的夹角（正方向为顺时针方向）
+        // 在Y轴向下为正的坐标系中，正上方是负Y方向
+        // atan2(-upDirX, upDirY)计算的是从正Y轴（上方）顺时针旋转到目标方向的角度
+        double angleRad = Math.atan2(-upDirX, upDirY); // 顺时针为正
+        double angleDeg = Math.toDegrees(angleRad);
         
-        // 计算归一化方向：上方向与角1到角2方向之间的夹角
-        double normalizedDirection = upAngle - edgeAngle;
-        if (normalizedDirection < 0) normalizedDirection += 360;
-        if (normalizedDirection >= 360) normalizedDirection -= 360;
+        // 将角度转换到[0, 360)范围内
+        if (angleDeg < 0) {
+            angleDeg += 360;
+        }
         
-        return normalizedDirection;
+        return angleDeg;
     }
 
     /**
