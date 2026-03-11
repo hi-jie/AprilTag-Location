@@ -39,7 +39,7 @@
    - 配置AprilTag家族类型（如tag16h5）
 
    - 设置四个角点标签ID（用于建立坐标系）
-   
+
    - 设置车辆标签ID（用于定位目标位置和角度）
 
 主界面：
@@ -62,15 +62,15 @@
 
     角度为顺时针为正方向，AprilTag 码正立时的上方向与 **点1** 指向 **点2** 方向所形成的角。
 
-3. 信息接收代码：
+3. 示例代码
 
     项目自带了一个 Python UDP 示例接收程序，可以接收Android端发送的位置和角度数据：
 
     > [docs/examples/udp_receiver.py](docs/examples/udp_receiver.py)
 
-### 误差分析
+### 3. 模拟与误差分析
 
-项目自带了一个 Python 示例程序，用于计算位置和角度的误差：
+项目自带了一个 Python 示例程序，用于模拟实际的场地并计算位置和角度的误差：
 
 > [docs/examples/analyze.py](docs/examples/analyze.py)
 
@@ -82,7 +82,7 @@
 apriltag-location/
 ├── app/                          # Android应用模块
 ├── apriltag/                     # AprilTag原生库模块
-├── docs/                         # 文档目录
+├── docs/                         # 文档和示例代码目录
 ├── gradle/                       # Gradle包装器目录
 ├── build.gradle.kts              # 顶级构建配置文件
 ├── gradle.properties             # Gradle全局属性配置
@@ -139,14 +139,21 @@ app/
 - 第21届全国大学生智能车竞赛人工智能模型组定位
 
 - 室内定位与导航
+
 - 机器人定位与路径规划
+
 - AR/VR空间定位
+
 - 物体姿态估计
+
 - 自动驾驶仿真测试
 
 ### 注意事项
 
 - 确保AprilTag标签清晰可见且不过于倾斜
+
 - 标签尺寸应适中，太小会导致识别困难
+
 - 光线条件会影响识别效果，请确保照明充足
+
 - 建议在稳定的网络环境下使用UDP传输

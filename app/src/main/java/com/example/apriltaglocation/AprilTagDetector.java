@@ -74,10 +74,10 @@ public class AprilTagDetector {
             if ("tag16h5".equals(tagFamily)) {
                 // 对于tag16h5，平衡性能和准确性
                 // 参数: tagFamily, errorBits(纠错位数), decimateFactor(降低采样因子), blurSigma(模糊sigma值), nthreads(线程数)
-                ApriltagNative.apriltag_init(tagFamily, 0, 1.5, 0.0, 4); // 增加降采样因子和线程数
+                ApriltagNative.apriltag_init(tagFamily, 0, 1, 0.0, 4); // 增加降采样因子和线程数
             } else {
                 // 对于其他tag族，使用相对宽松的参数
-                ApriltagNative.apriltag_init(tagFamily, 4, 1.5, 0.0, 4); // 增加降采样因子和线程数
+                ApriltagNative.apriltag_init(tagFamily, 4, 1, 0.0, 4); // 增加降采样因子和线程数
             }
         } catch (UnsatisfiedLinkError e) {
             Log.e(TAG, "Failed to initialize AprilTag native library: " + e.getMessage());

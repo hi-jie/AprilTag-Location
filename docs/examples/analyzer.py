@@ -11,12 +11,13 @@ position_label = "真实: X: {x:.5f}    Y: {y:.5f}    角度: {angle:.3f}°"
 measurement_label = "测量: X: {x:.5f}    Y: {y:.5f}    角度: {angle:.3f}°"
 error_label = "误差: X: {error_x:.5f}    Y: {error_y:.5f}    角度: {error_angle:.3f}°"
 image_physical_width_label = "图片物理宽度: {image_physical_width:.3f} m"
+field_size_label = "场地尺寸: {width:.2f}m × {height:.2f}m"
 FPS_label = "接收帧率: {fps:.2f} FPS"
 
 class AprilTagLocationApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("AprilTag Location 误差分析工具")
+        self.root.title("AprilTag Location 模拟与分析")
         
         # 存储最近1秒的数据
         self.recent_data = deque()
@@ -26,54 +27,77 @@ class AprilTagLocationApp:
         self.max_store_time = 1.0
         
         # 初始窗口大小
-        self.initial_width = 800
+        self.initial_width = 1140
         self.initial_height = 600
 
         self.norm_x = 0.0
         self.norm_y = 0.0
         self.angle = 0.0
         
+        # 场地尺寸（米）
+        self.field_width = 5.0  # 默认5米
+        self.field_height = 4.0  # 默认4米
+        
         # 设置窗口大小
         self.root.geometry(f"{self.initial_width}x{self.initial_height}")
         
-        # 固定比例因子
-        self.canvas_aspect_ratio = 4/3  # 长宽比
-        
         # 主容器，使用网格布局
-        self.root.grid_rowconfigure(1, weight=1)  # 画布行可扩展
-        self.root.grid_columnconfigure(0, weight=1)  # 唯一列可扩展
+        self.root.grid_rowconfigure(3, weight=1)  # 画布行可扩展
+        self.root.grid_columnconfigure(0, minsize=400)  # 控制面板列
+        self.root.grid_columnconfigure(1, weight=1)
         
         # 控制面板 - 固定在顶部，大小和旋转滑块放在同一行
         control_frame = ttk.Frame(root)
-        control_frame.grid(row=0, column=0, sticky="ew", padx=10, pady=10)
-        control_frame.grid_columnconfigure(0, weight=1)  # 大小滑块列可扩展
-        control_frame.grid_columnconfigure(1, weight=1)  # 旋转滑块列可扩展
+        control_frame.grid(row=0, column=0, sticky="we", padx=10, pady=10)
+        control_frame.grid_columnconfigure(0, weight=1)
         
         # 统一图片大小控制
-        ttk.Label(control_frame, text="图片大小:").grid(row=0, column=0, sticky=tk.W, padx=(0, 5))
+        ttk.Label(control_frame, text="图片大小:").grid(row=0, column=0, sticky=tk.W, padx=5)
         self.image_size_var = tk.IntVar(value=50)
         image_size_scale = ttk.Scale(
             control_frame, from_=20, to=150, orient=tk.HORIZONTAL, 
             variable=self.image_size_var, command=self.on_image_size_change
         )
-        image_size_scale.grid(row=1, column=0, sticky=tk.EW, padx=(0, 5))
+        image_size_scale.grid(row=1, column=0, sticky=tk.EW, padx=5)
         self.image_size_label = ttk.Label(control_frame, text=f"{self.image_size_var.get()}")
         self.image_size_label.grid(row=2, column=0, sticky=tk.W)
         
         # 旋转控制
-        ttk.Label(control_frame, text="旋转角度:").grid(row=0, column=1, sticky=tk.W, padx=(5, 0))
+        ttk.Label(control_frame, text="旋转角度:").grid(row=3, column=0, sticky=tk.W, padx=5)
         self.rotation_var = tk.DoubleVar(value=0)
         rotation_scale = ttk.Scale(
             control_frame, from_=0, to=360, orient=tk.HORIZONTAL,
             variable=self.rotation_var, command=self.on_rotation_change
         )
-        rotation_scale.grid(row=1, column=1, sticky=tk.EW, padx=(5, 0))
+        rotation_scale.grid(row=4, column=0, sticky=tk.EW, padx=5)
         self.rotation_label = ttk.Label(control_frame, text=f"{self.rotation_var.get():.1f}°")
-        self.rotation_label.grid(row=2, column=1, sticky=tk.W)
+        self.rotation_label.grid(row=5, column=0, sticky=tk.W)
+        
+        # 场地尺寸设置
+        field_size_frame = ttk.LabelFrame(control_frame, text="场地尺寸(m)", padding=10)
+        field_size_frame.grid(row=6, column=0, sticky="ew", padx=0, pady=10)
+        field_size_frame.grid_columnconfigure(1, weight=1)
+        field_size_frame.grid_columnconfigure(3, weight=1)
+        
+        # 宽度输入
+        ttk.Label(field_size_frame, text="宽:").grid(row=0, column=0, sticky=tk.E, padx=5, pady=2)
+        self.width_var = tk.StringVar(value=str(self.field_width))
+        self.width_entry = ttk.Entry(field_size_frame, textvariable=self.width_var, width=6)
+        self.width_entry.grid(row=0, column=1, sticky='ew', padx=5, pady=2)
+        
+        # 高度输入
+        ttk.Label(field_size_frame, text="高:").grid(row=0, column=2, sticky=tk.E, padx=5, pady=2)
+        self.height_var = tk.StringVar(value=str(self.field_height))
+        self.height_entry = ttk.Entry(field_size_frame, textvariable=self.height_var, width=6)
+        self.height_entry.grid(row=0, column=3, sticky='ew', padx=5, pady=2)
+        
+        # 确认按钮
+        self.apply_button = ttk.Button(field_size_frame, text="确认", command=self.on_field_size_change)
+        self.apply_button.grid(row=0, column=4, padx=5)
         
         # 画布区域 - 占据中间空间
         canvas_frame = ttk.Frame(root)
-        canvas_frame.grid(row=1, column=0, sticky="nswe", padx=10, pady=(0, 10))
+        canvas_frame.grid(row=0, column=1, rowspan=4, sticky="nswe", padx=10, pady=10)
         canvas_frame.grid_rowconfigure(0, weight=1)
         canvas_frame.grid_columnconfigure(0, weight=1)
         
@@ -87,26 +111,26 @@ class AprilTagLocationApp:
         
         # 信息框架放在底部，整合位置信息和UDP数据信息
         info_frame = ttk.LabelFrame(root, text="信息显示")
-        info_frame.grid(row=2, column=0, sticky="ew", padx=10, pady=(0, 10))
-
-        info_frame.grid_columnconfigure(0, weight=2)
-        info_frame.grid_columnconfigure(1, weight=1)
+        info_frame.grid(row=2, column=0, sticky="ew", padx=10, pady=10)
         
         # 三行信息显示
         self.position_label = ttk.Label(info_frame, text=position_label.format(x=0, y=0, angle=0, image_physical_width=0), anchor="w", font=("微软雅黑", 12))
-        self.position_label.grid(row=0, column=0, padx=(5, 30), sticky="w")
+        self.position_label.grid(row=0, column=0, padx=5, sticky="w")
         
         self.measurement_label = ttk.Label(info_frame, text=measurement_label.format(x=0, y=0, angle=0, fps=0), anchor="w", font=("微软雅黑", 12))
-        self.measurement_label.grid(row=1, column=0, padx=(5, 30), sticky="w")
+        self.measurement_label.grid(row=1, column=0, padx=5, sticky="w")
         
         self.error_label = ttk.Label(info_frame, text=error_label.format(error_x=0, error_y=0, error_angle=0), anchor="w", font=("微软雅黑", 12))
-        self.error_label.grid(row=2, column=0, padx=(5, 30), sticky="w")
+        self.error_label.grid(row=2, column=0, padx=5, pady=(0, 10), sticky="w")
         
         self.image_physical_width_label = ttk.Label(info_frame, text=image_physical_width_label.format(image_physical_width=0), anchor="w", font=("微软雅黑", 12))
-        self.image_physical_width_label.grid(row=0, column=1, sticky="w")
+        self.image_physical_width_label.grid(row=3, column=0, padx=5, sticky="w")
+
+        self.field_size_info_label = ttk.Label(info_frame, text=field_size_label.format(width=self.field_width, height=self.field_height), anchor="w", font=("微软雅黑", 12))
+        self.field_size_info_label.grid(row=4, column=0, padx=5, sticky="w")
 
         self.fps_label = ttk.Label(info_frame, text=FPS_label.format(fps=0), anchor="w", font=("微软雅黑", 12))
-        self.fps_label.grid(row=1, column=1, sticky="w")
+        self.fps_label.grid(row=5, column=0, padx=5, sticky="w")
         
         # 监听窗口大小变化事件
         self.root.bind('<Configure>', self.on_window_resize)
@@ -453,6 +477,35 @@ class AprilTagLocationApp:
         self.rotate_center_image()
         self.update_position_info()
     
+    def on_field_size_change(self, event=None):
+        """当点击确认按钮时更新场地尺寸"""
+        try:
+            # 获取用户输入的值
+            new_width = float(self.width_var.get())
+            new_height = float(self.height_var.get())
+            
+            # 验证输入值
+            if new_width <= 0 or new_height <= 0:
+                raise ValueError("尺寸必须大于0")
+                
+            # 更新场地尺寸
+            self.field_width = new_width
+            self.field_height = new_height
+            
+            # 更新显示
+            self.field_size_info_label.config(
+                text=field_size_label.format(width=self.field_width, height=self.field_height)
+            )
+            
+            # 调整画布大小以反映新的场地比例
+            self.root.after_idle(self.adjust_canvas_size)
+            
+        except ValueError:
+            # 如果输入无效，恢复原值
+            self.width_var.set(str(self.field_width))
+            self.height_var.set(str(self.field_height))
+            print("输入的场地尺寸无效，请输入正数值！")
+    
     def on_window_resize(self, event):
         """窗口大小改变时的回调函数"""
         # 只响应根窗口的大小改变事件
@@ -461,22 +514,8 @@ class AprilTagLocationApp:
             self.root.after_idle(self.adjust_canvas_size)
     
     def adjust_canvas_size(self):
-        """调整画布大小以保持4:3比例"""
-        # 获取窗口的当前尺寸
-        win_width = self.root.winfo_width()
-        win_height = self.root.winfo_height()
-        
-        # 计算可用空间（减去其他组件占用的空间）
-        control_height = 100  # 控制面板高度（包含两行）
-        info_height = 120     # 信息面板高度（包含三行）
-        padding = 30          # 总边距
-        
-        available_height = win_height - control_height - info_height - padding
-        
-        # 确保可用高度为正值
-        if available_height <= 0:
-            return
-            
+        """调整画布大小以保持比例"""
+                   
         # 获取canvas_frame的尺寸，这是画布的最大可用空间
         canvas_frame = self.outer_canvas.master
         canvas_frame.update_idletasks()  # 确保几何信息是最新的
@@ -484,10 +523,10 @@ class AprilTagLocationApp:
         max_width = canvas_frame.winfo_width()
         max_height = canvas_frame.winfo_height()
         
-        # 根据最大可用空间和4:3比例计算实际画布尺寸
-        # 要保持4:3比例，width/height = 4/3 => width = 4*height/3 或 height = 3*width/4
-        proposed_width_by_height = max_height * 4 / 3
-        proposed_height_by_width = max_width * 3 / 4
+        # 根据场地实际比例计算画布尺寸
+        aspect_ratio = self.field_width / self.field_height
+        proposed_width_by_height = max_height * aspect_ratio
+        proposed_height_by_width = max_width / aspect_ratio
         
         if proposed_width_by_height <= max_width:
             # 高度限制了尺寸，按高度计算宽度
@@ -550,8 +589,8 @@ class AprilTagLocationApp:
         # 当前角度
         self.angle = self.rotation_var.get()
 
-        # 计算图片的物理宽度（假设场地是4m×3m）
-        canvas_width_meters = 4.0  # 场地宽度4米
+        # 计算图片的物理宽度（使用当前场地尺寸）
+        canvas_width_meters = self.field_width  # 使用当前场地宽度
         image_size_pixels = self.image_size_var.get()  # 图片像素大小
         canvas_width_pixels = self.canvas.winfo_width()  # 画布像素宽度
         
@@ -569,6 +608,9 @@ class AprilTagLocationApp:
         )
         self.image_physical_width_label.config(
             text=image_physical_width_label.format(image_physical_width=image_physical_width)
+        )
+        self.field_size_info_label.config(
+            text=field_size_label.format(width=self.field_width, height=self.field_height)
         )
 
 
