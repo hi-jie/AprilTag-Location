@@ -201,7 +201,7 @@ public class MainActivity extends AppCompatActivity {
             int newServerPort = prefs.getInt("server_port", 8080);
             
             // Load tag family
-            String tagFamily = prefs.getString("tag_family", "tag16h5");
+            String tagFamily = prefs.getString("tag_family", "tag36h11");
             
             // Update static variables
             cornerTagIds = newCornerTagIds;

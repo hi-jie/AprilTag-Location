@@ -61,8 +61,8 @@ public class SettingsActivity extends AppCompatActivity {
         corner4EditText.setText(String.valueOf(prefs.getInt("base_tag_4", 3)));
         vehicleTagEditText.setText(String.valueOf(prefs.getInt("front_tag", 4)));  // 仍使用front_tag键存储车辆标签ID
         
-        // 获取保存的tag族，如果没有则默认为tag16h5
-        String savedTagFamily = prefs.getString("tag_family", "tag16h5");
+        // 获取保存的tag族，如果没有则默认为tag36h11
+        String savedTagFamily = prefs.getString("tag_family", "tag36h11");
         
         // 设置spinner的选中项
         for (int i = 0; i < TAG_FAMILIES.length; i++) {

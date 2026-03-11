@@ -37,7 +37,7 @@ public class AprilTagDetector {
     public AprilTagDetector(int[] baseTagIds, int vehicleTagId) {
         this.baseTagIds = baseTagIds;
         this.vehicleTagId = vehicleTagId;
-        this.tagFamily = "tag16h5"; // 默认使用tag16h5
+        this.tagFamily = "tag36h11"; // 默认使用tag36h11
         
         updateThresholdsByTagFamily(); // 根据tag族更新阈值
         initializeDetector();
@@ -46,7 +46,7 @@ public class AprilTagDetector {
     public AprilTagDetector(int[] baseTagIds, int vehicleTagId, String tagFamily) {
         this.baseTagIds = baseTagIds;
         this.vehicleTagId = vehicleTagId;
-        this.tagFamily = tagFamily != null ? tagFamily : "tag16h5";
+        this.tagFamily = tagFamily != null ? tagFamily : "tag36h11";
         
         updateThresholdsByTagFamily(); // 根据tag族更新阈值
         initializeDetector();
