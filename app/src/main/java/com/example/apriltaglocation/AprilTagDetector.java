@@ -27,15 +27,16 @@ public class AprilTagDetector {
     private double decimateFactor; // 新增：降低采样因子
     private int nthreads;      // 新增：线程数
     
-    // 根据tag族类型设置不同的Hamming距离阈值
-    private int maxHammingDistance;
-    private double minDecisionMargin;
-    
     // 用于计算位置的四个角点
     private double[][] cornerPositions = new double[4][2];
     
     // 添加锁对象，用于同步访问
     private final Object detectorLock = new Object();
+
+    // 默认参数的构造函数
+    public AprilTagDetector() {
+        this(new int[] {0, 1, 2, 3}, 4, "tag36h11", 2, 1.0, 4);
+    }
 
     public AprilTagDetector(int[] baseTagIds, int vehicleTagId, String tagFamily, int errorBits, double decimateFactor, int nthreads) {
         this.baseTagIds = baseTagIds;
@@ -45,26 +46,7 @@ public class AprilTagDetector {
         this.decimateFactor = decimateFactor;
         this.nthreads = nthreads;
         
-        updateThresholdsByTagFamily(); // 根据tag族更新阈值
         initializeDetector();
-    }
-
-    // 默认参数的构造函数
-    public AprilTagDetector() {
-        this(new int[] {0, 1, 2, 3}, 4, "tag36h11", 2, 1.0, 4);
-    }
-
-    // 根据tag族类型设置不同的检测阈值
-    private void updateThresholdsByTagFamily() {
-        if ("tag16h5".equals(tagFamily)) {
-            // 对于tag16h5，平衡性能和准确性
-            maxHammingDistance = 0; // 仍然保持严格匹配，不允许错误校正
-            minDecisionMargin = 20.0; // 适度降低决策边距阈值以提高性能
-        } else {
-            // 对于其他tag族，使用较宽松的阈值
-            maxHammingDistance = 2; // 允许一定错误校正
-            minDecisionMargin = 15.0; // 较低的决策边距阈值
-        }
     }
 
     private void initializeDetector() {
@@ -129,16 +111,10 @@ public class AprilTagDetector {
             }
 
             // 查找目标标签和基准标签
-            ApriltagDetection vehicleDetection = null;  // 只需要一个车辆标签，不再区分前后
+            ApriltagDetection vehicleDetection = null;
             List<ApriltagDetection> baseDetections = new ArrayList<>();
 
-            for (ApriltagDetection detection : detections) {
-                // 验证检测质量：检查hamming距离
-                if (detection.hamming > maxHammingDistance) {
-                    // Hamming距离过大，跳过这个检测结果
-                    continue;
-                }
-                
+            for (ApriltagDetection detection : detections) {                
                 boolean isBaseTag = false;
                 for (int baseTagId : baseTagIds) {
                     if (detection.id == baseTagId) {
@@ -149,7 +125,7 @@ public class AprilTagDetector {
                 }
                 
                 if (!isBaseTag) {
-                    if (detection.id == vehicleTagId) {  // 检测车辆标签，不再区分前后
+                    if (detection.id == vehicleTagId) { 
                         vehicleDetection = detection;
                     }
                 }
@@ -486,7 +462,6 @@ public class AprilTagDetector {
         this.nthreads = nthreads;
 
         if (needReinit) {
-            updateThresholdsByTagFamily(); // 更新阈值
             initializeDetector();
         }
     }

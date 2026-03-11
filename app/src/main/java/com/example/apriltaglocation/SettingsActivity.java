@@ -160,7 +160,7 @@ public class SettingsActivity extends AppCompatActivity {
             
             editor.apply();
 
-            Toast.makeText(this, "Settings saved successfully", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, "设置已保存", Toast.LENGTH_SHORT).show();
             finish();
         } catch (NumberFormatException e) {
             showError("Please enter valid numbers in all fields");

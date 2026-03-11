@@ -17,7 +17,3 @@
 可以在 [https://www.2weima.com/aruco.html](https://www.2weima.com/aruco.html) 网站生成 AprilTag 标签。注意：这个网站生成的标签都是旋转180度的，可以使用 [rotate_image.py](rotate_image.py) 脚本旋转。双击运行即可。
 
 ![../images/analyzer.png](../images/analyzer.png)
-
-示例视频 ：
-
-![../images/example.mp4](../images/example.mp4)
