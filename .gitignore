@@ -69,12 +69,12 @@ apriltag/*pywrap*
 apriltag/*.docstring
 
 # AprilTag extra tag families not currently used (optional, can be kept if needed)
-# apriltag/tagCircle*.c
-# apriltag/tagCircle*.h
-# apriltag/tagCustom*.c
-# apriltag/tagCustom*.h
-# apriltag/tagStandard*.c
-# apriltag/tagStandard*.h
+apriltag/tagCircle*.c
+apriltag/tagCircle*.h
+apriltag/tagCustom*.c
+apriltag/tagCustom*.h
+apriltag/tagStandard*.c
+apriltag/tagStandard*.h
 
 # AprilTag documentation files (not essential for compilation)
 apriltag/README.md
