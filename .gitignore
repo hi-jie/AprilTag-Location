@@ -53,22 +53,28 @@ google-services.json
 obj/
 .libs/
 
-# AprilTag library specific ignores
-# Build directories
+# AprilTag 临时文件
 apriltag/build/
 apriltag/.cxx/
 apriltag/obj/
 apriltag/.build/
 
-# AprilTag example and test files (not needed for the app)
+# AprilTag 示例和测试文件
 apriltag/example/
 apriltag/test/
+apriltag/src/main/cpp/example/
+apriltag/src/main/cpp/test/
 
 # AprilTag Python bindings (not used in Android app)
 apriltag/*pywrap*
 apriltag/*.docstring
 
-# AprilTag extra tag families not currently used (optional, can be kept if needed)
+# AprilTag顶层的文件
+apriltag/CMake/
+apriltag/common/
+apriltag/*.c
+apriltag/*.h
+
 tagCircle*.c
 tagCircle*.h
 tagCustom*.c
@@ -82,6 +88,7 @@ apriltag/LICENSE.md
 
 # AprilTag extra resources
 apriltag/tag_size_48h12.png
+apriltag/src/main/cpp/tag_size_48h12.png
 
 # AprilTag repository artifacts
 apriltag/.github/
