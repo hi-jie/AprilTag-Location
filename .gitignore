@@ -52,3 +52,37 @@ google-services.json
 # NDK
 obj/
 .libs/
+
+# AprilTag library specific ignores
+# Build directories
+apriltag/build/
+apriltag/.cxx/
+apriltag/obj/
+apriltag/.build/
+
+# AprilTag example and test files (not needed for the app)
+apriltag/example/
+apriltag/test/
+
+# AprilTag Python bindings (not used in Android app)
+apriltag/*pywrap*
+apriltag/*.docstring
+
+# AprilTag extra tag families not currently used (optional, can be kept if needed)
+# apriltag/tagCircle*.c
+# apriltag/tagCircle*.h
+# apriltag/tagCustom*.c
+# apriltag/tagCustom*.h
+# apriltag/tagStandard*.c
+# apriltag/tagStandard*.h
+
+# AprilTag documentation files (not essential for compilation)
+apriltag/README.md
+apriltag/LICENSE.md
+
+# AprilTag extra resources
+apriltag/tag_size_48h12.png
+
+# AprilTag repository artifacts
+apriltag/.github/
+apriltag/apriltag-master/
