@@ -23,6 +23,9 @@ public class AprilTagDetector {
     private int[] baseTagIds;
     private int vehicleTagId;  // 单个标签ID代表小车，不再区分车头和车尾
     private String tagFamily;
+    private int errorBits;     // 新增：纠错位数
+    private double decimateFactor; // 新增：降低采样因子
+    private int nthreads;      // 新增：线程数
     
     // 根据tag族类型设置不同的Hamming距离阈值
     private int maxHammingDistance;
@@ -34,22 +37,21 @@ public class AprilTagDetector {
     // 添加锁对象，用于同步访问
     private final Object detectorLock = new Object();
 
-    public AprilTagDetector(int[] baseTagIds, int vehicleTagId) {
+    public AprilTagDetector(int[] baseTagIds, int vehicleTagId, String tagFamily, int errorBits, double decimateFactor, int nthreads) {
         this.baseTagIds = baseTagIds;
         this.vehicleTagId = vehicleTagId;
-        this.tagFamily = "tag36h11"; // 默认使用tag36h11
+        this.tagFamily = tagFamily != null ? tagFamily : "tag36h11";
+        this.errorBits = errorBits;
+        this.decimateFactor = decimateFactor;
+        this.nthreads = nthreads;
         
         updateThresholdsByTagFamily(); // 根据tag族更新阈值
         initializeDetector();
     }
 
-    public AprilTagDetector(int[] baseTagIds, int vehicleTagId, String tagFamily) {
-        this.baseTagIds = baseTagIds;
-        this.vehicleTagId = vehicleTagId;
-        this.tagFamily = tagFamily != null ? tagFamily : "tag36h11";
-        
-        updateThresholdsByTagFamily(); // 根据tag族更新阈值
-        initializeDetector();
+    // 默认参数的构造函数
+    public AprilTagDetector() {
+        this(new int[] {0, 1, 2, 3}, 4, "tag36h11", 2, 1.0, 4);
     }
 
     // 根据tag族类型设置不同的检测阈值
@@ -71,8 +73,7 @@ public class AprilTagDetector {
             ApriltagNative.native_init();
 
             // 参数: tagFamily, errorBits(纠错位数), decimateFactor(降低采样因子), blurSigma(模糊sigma值), nthreads(线程数)
-            
-            ApriltagNative.apriltag_init(tagFamily, 4, 1, 0.0, 4); // 增加降采样因子和线程数
+            ApriltagNative.apriltag_init(tagFamily, errorBits, decimateFactor, 0.0, nthreads);
         } catch (UnsatisfiedLinkError e) {
             Log.e(TAG, "Failed to initialize AprilTag native library: " + e.getMessage());
             // 显示错误信息给用户
@@ -85,6 +86,11 @@ public class AprilTagDetector {
     public String getTagFamily() {
         return tagFamily;
     }
+
+    // 获取当前设置的参数值
+    public int getErrorBits() { return errorBits; }
+    public double getDecimateFactor() { return decimateFactor; }
+    public int getNThreads() { return nthreads; }
 
     /**
      * 处理图像并检测标签
@@ -464,17 +470,24 @@ public class AprilTagDetector {
         return grayscale;
     }
     
-    public void updateSettings(int[] baseTagIds, int vehicleTagId, String tagFamily) {
+    // 统一的更新设置方法，包含所有参数
+    public void updateSettings(int[] baseTagIds, int vehicleTagId, String tagFamily, int errorBits, double decimateFactor, int nthreads) {
+        boolean needReinit = false;
+        // 检查是否需要重新初始化检测器
+        if (!this.tagFamily.equals(tagFamily) || this.errorBits != errorBits || this.nthreads != nthreads) {
+            needReinit = true;
+        }
+
         this.baseTagIds = baseTagIds;
-        this.vehicleTagId = vehicleTagId;  // 现在只需要一个车辆标签ID
-        
-        // 如果tag族发生变化，则重新初始化检测器
-        if (!this.tagFamily.equals(tagFamily)) {
-            this.tagFamily = tagFamily;
+        this.vehicleTagId = vehicleTagId;
+        this.tagFamily = tagFamily;
+        this.errorBits = errorBits;
+        this.decimateFactor = decimateFactor;
+        this.nthreads = nthreads;
+
+        if (needReinit) {
             updateThresholdsByTagFamily(); // 更新阈值
             initializeDetector();
-        } else {
-            this.tagFamily = tagFamily;
         }
     }
 

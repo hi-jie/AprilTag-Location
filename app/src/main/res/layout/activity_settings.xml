@@ -12,7 +12,7 @@
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="AprilTag Configuration"
+            android:text="AprilTag码设置"
             android:textSize="18sp"
             android:textStyle="bold"
             android:layout_marginBottom="16dp"/>
@@ -20,7 +20,7 @@
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Tag Family:"
+            android:text="标签族:"
             android:textSize="16sp"
             android:layout_marginBottom="8dp"/>
 
@@ -33,7 +33,7 @@
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Corner Tag IDs:"
+            android:text="场地四个角的ID:"
             android:textSize="16sp"
             android:layout_marginBottom="8dp"/>
 
@@ -48,7 +48,7 @@
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:hint="Corner 1"
+                android:hint="左上"
                 android:inputType="number"
                 android:layout_marginEnd="8dp"/>
 
@@ -57,7 +57,7 @@
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:hint="Corner 2"
+                android:hint="右上"
                 android:inputType="number"
                 android:layout_marginStart="8dp"
                 android:layout_marginEnd="8dp"/>
@@ -75,7 +75,7 @@
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:hint="Corner 3"
+                android:hint="左下"
                 android:inputType="number"
                 android:layout_marginEnd="8dp"/>
 
@@ -84,7 +84,7 @@
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:hint="Corner 4"
+                android:hint="右下"
                 android:inputType="number"
                 android:layout_marginStart="8dp"/>
 
@@ -93,7 +93,7 @@
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Vehicle Tag ID:"
+            android:text="小车ID:"
             android:textSize="16sp"
             android:layout_marginBottom="8dp"/>
 
@@ -105,11 +105,65 @@
             android:inputType="number"
             android:layout_marginBottom="16dp"/>
 
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="AprilTag 检测参数:"
+            android:textSize="18sp"
+            android:textStyle="bold"
+            android:layout_marginTop="16dp"
+            android:layout_marginBottom="8dp"/>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Error Bits (纠错位数):"
+            android:textSize="16sp"
+            android:layout_marginBottom="4dp"/>
+
+        <EditText
+            android:id="@+id/errorBitsInput"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="默认值：2"
+            android:inputType="number"
+            android:layout_marginBottom="8dp"/>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Decimate Factor (降低采样因子):"
+            android:textSize="16sp"
+            android:layout_marginBottom="4dp"/>
+
+        <EditText
+            android:id="@+id/decimateFactorInput"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="默认值：1.0 (输入大于1的值以降低采样率)"
+            android:inputType="numberDecimal"
+            android:layout_marginBottom="8dp"/>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Number of Threads (线程数):"
+            android:textSize="16sp"
+            android:layout_marginBottom="4dp"/>
+
+        <EditText
+            android:id="@+id/nthreadsInput"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="默认值：4"
+            android:inputType="number"
+            android:layout_marginBottom="16dp"/>
+
         <Button
             android:id="@+id/saveSettingsButton"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Save Settings"/>
+            android:text="保存设置"/>
 
     </LinearLayout>
 

@@ -46,12 +46,9 @@ public class MainActivity extends AppCompatActivity {
     private Button settingsButton;
     private NetworkSender networkSender;
     private TextView coordinatesTextView; // 用于显示坐标、角度和帧率的文本视图
-    
-    // AprilTag IDs for corners and vehicle
-    public static int[] cornerTagIds = {0, 1, 2, 3}; // Default IDs for 4 corners
-    public static int vehicleTagId = 4; // Vehicle tag ID (single tag, no front/rear distinction)
-    public static int serverPort = 8080; // Default port for sending data
 
+    private AprilTagDetector aprilTagDetector;
+    
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -114,14 +111,14 @@ public class MainActivity extends AppCompatActivity {
 
     private void startCamera() {
         try {
-            // Load settings from SharedPreferences
-            loadSettings();
-
             // Create AprilTagDetector with corner and vehicle tag IDs (single tag, no front/rear distinction)
-            AprilTagDetector detector = new AprilTagDetector(cornerTagIds, vehicleTagId);
+            aprilTagDetector = new AprilTagDetector();
 
             // Initialize analyzer
-            aprilTagAnalyzer = new AprilTagAnalyzer(detector, networkSender, this);
+            aprilTagAnalyzer = new AprilTagAnalyzer(aprilTagDetector, networkSender, this);
+
+            // Load settings from SharedPreferences
+            loadSettings();
             
             // 设置检测结果回调，更新坐标显示
             aprilTagAnalyzer.setOnDetectionResultListener(result -> {
@@ -201,16 +198,16 @@ public class MainActivity extends AppCompatActivity {
             int newServerPort = prefs.getInt("server_port", 8080);
             
             // Load tag family
-            String tagFamily = prefs.getString("tag_family", "tag36h11");
+            String newTagFamily = prefs.getString("tag_family", "tag36h11");
             
-            // Update static variables
-            cornerTagIds = newCornerTagIds;
-            vehicleTagId = newVehicleTagId;  // Now using single vehicle tag ID
-            serverPort = newServerPort;
+            // Load new parameters
+            int newErrorBits = prefs.getInt("error_bits", 2);
+            float newDecimateFactor = prefs.getFloat("decimate_factor", 1.0f);
+            int newNThreads = prefs.getInt("nthreads", 4);
             
-            // Update analyzer with new settings if they've changed
-            if (aprilTagAnalyzer != null) {
-                aprilTagAnalyzer.updateSettings(cornerTagIds, vehicleTagId, tagFamily);
+            // Update detector with new settings if they've changed
+            if (aprilTagDetector != null) {
+                aprilTagDetector.updateSettings(newCornerTagIds, newVehicleTagId, newTagFamily, newErrorBits, newDecimateFactor, newNThreads);
             }
             
             // Update network sender with new port

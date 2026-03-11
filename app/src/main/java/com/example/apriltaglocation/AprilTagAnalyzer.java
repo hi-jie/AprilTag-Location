@@ -129,11 +129,6 @@ public class AprilTagAnalyzer implements ImageAnalysis.Analyzer {
         }
     }
 
-    // 添加方法以更新设置 - 现在只需要单个车辆标签ID
-    public void updateSettings(int[] baseTagIds, int vehicleTagId, String tagFamily) {
-        aprilTagDetector.updateSettings(baseTagIds, vehicleTagId, tagFamily);
-    }
-
     // 获取当前帧率
     public double getCurrentFps() {
         return currentFps;
