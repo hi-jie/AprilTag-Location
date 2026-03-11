@@ -69,16 +69,10 @@ public class AprilTagDetector {
         try {
             // 初始化原生库
             ApriltagNative.native_init();
+
+            // 参数: tagFamily, errorBits(纠错位数), decimateFactor(降低采样因子), blurSigma(模糊sigma值), nthreads(线程数)
             
-            // 根据tag族类型设置不同的检测参数
-            if ("tag16h5".equals(tagFamily)) {
-                // 对于tag16h5，平衡性能和准确性
-                // 参数: tagFamily, errorBits(纠错位数), decimateFactor(降低采样因子), blurSigma(模糊sigma值), nthreads(线程数)
-                ApriltagNative.apriltag_init(tagFamily, 0, 1, 0.0, 4); // 增加降采样因子和线程数
-            } else {
-                // 对于其他tag族，使用相对宽松的参数
-                ApriltagNative.apriltag_init(tagFamily, 4, 1, 0.0, 4); // 增加降采样因子和线程数
-            }
+            ApriltagNative.apriltag_init(tagFamily, 4, 1, 0.0, 4); // 增加降采样因子和线程数
         } catch (UnsatisfiedLinkError e) {
             Log.e(TAG, "Failed to initialize AprilTag native library: " + e.getMessage());
             // 显示错误信息给用户
@@ -90,29 +84,6 @@ public class AprilTagDetector {
     
     public String getTagFamily() {
         return tagFamily;
-    }
-
-    public void updateTagFamily(String newTagFamily) {
-        synchronized(detectorLock) {
-            if (!tagFamily.equals(newTagFamily)) {
-                this.tagFamily = newTagFamily;
-                updateThresholdsByTagFamily(); // 更新阈值
-                // 重新初始化检测器
-                try {
-                    if ("tag16h5".equals(tagFamily)) {
-                        // 对tag16h5使用优化的参数
-                        ApriltagNative.apriltag_init(tagFamily, 0, 1.5, 0.0, 4); // 增加降采样和线程数
-                    } else {
-                        // 对其他族使用优化的参数
-                        ApriltagNative.apriltag_init(tagFamily, 2, 1.5, 0.0, 4); // 增加降采样和线程数
-                    }
-                } catch (UnsatisfiedLinkError e) {
-                    Log.e(TAG, "Failed to reinitialize AprilTag native library: " + e.getMessage());
-                } catch (Exception e) {
-                    Log.e(TAG, "Unexpected error during AprilTag reinitialization: " + e.getMessage(), e);
-                }
-            }
-        }
     }
 
     /**

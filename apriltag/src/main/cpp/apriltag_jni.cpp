@@ -42,26 +42,28 @@ Java_edu_umich_eecs_april_apriltag_ApriltagNative_apriltag_1init(JNIEnv *env, jc
     // 如果已经初始化了，先清理
     if (detector != nullptr) {
         apriltag_detector_destroy(detector);
+        detector = nullptr;
     }
     if (tagFamily != nullptr) {
-        // 销毁不同的标签族
-        if (strcmp(familyName, "tag36h11") == 0) {
+        // 根据当前标签族类型销毁对应的标签族
+        if (strcmp(tagFamily->name, "tag36h11") == 0) {
             tag36h11_destroy(tagFamily);
-        } else if (strcmp(familyName, "tag25h9") == 0) {
+        } else if (strcmp(tagFamily->name, "tag25h9") == 0) {
             tag25h9_destroy(tagFamily);
-        } else if (strcmp(familyName, "tag16h5") == 0) {
+        } else if (strcmp(tagFamily->name, "tag16h5") == 0) {
             tag16h5_destroy(tagFamily);
-        } else if (strcmp(familyName, "tagCircle21h7") == 0) {
+        } else if (strcmp(tagFamily->name, "tagCircle21h7") == 0) {
             tagCircle21h7_destroy(tagFamily);
-        } else if (strcmp(familyName, "tagCircle49h12") == 0) {
+        } else if (strcmp(tagFamily->name, "tagCircle49h12") == 0) {
             tagCircle49h12_destroy(tagFamily);
-        } else if (strcmp(familyName, "tagStandard41h12") == 0) {
+        } else if (strcmp(tagFamily->name, "tagStandard41h12") == 0) {
             tagStandard41h12_destroy(tagFamily);
-        } else if (strcmp(familyName, "tagStandard52h13") == 0) {
+        } else if (strcmp(tagFamily->name, "tagStandard52h13") == 0) {
             tagStandard52h13_destroy(tagFamily);
-        } else if (strcmp(familyName, "tagCustom48h12") == 0) {
+        } else if (strcmp(tagFamily->name, "tagCustom48h12") == 0) {
             tagCustom48h12_destroy(tagFamily);
         }
+        tagFamily = nullptr;
     }
 
     // 创建标签族

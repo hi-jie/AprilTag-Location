@@ -101,7 +101,7 @@
             android:id="@+id/vehicleTagId"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:hint="Vehicle Tag (single tag, no front/rear distinction)"
+            android:hint="Vehicle Tag"
             android:inputType="number"
             android:layout_marginBottom="16dp"/>
 
